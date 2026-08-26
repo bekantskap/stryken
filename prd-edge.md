@@ -2,13 +2,16 @@
 
 ## En +EV-analysapp för Stryktipset, Europatipset och V75
 
-**Version:** 0.2 (reviderad efter fas 0-spike)
+**Version:** 0.3 (α kalibrerad mot 984 observationer)
 **Datum:** 2026-08-26 (v0.1: 2026-08-25)
 **Ägare:** Alex
-**Status:** Fas 0 påbörjad
+**Status:** Fas 1 klar så nära backtesten; nästa steg är fas 2 (beslutsgrind)
 
 > **Ändringar i v0.2** — efter mätning mot live-API:er och 68 verkliga utdelningstabeller (§11):
 > §3.1/§3.3 datakällor verifierade, tipsxtra-beroendet utgår, SvS-odds blir `p_modell` · §6 EV-matematiken omskriven (utbetalning 59,7 % ej 65 %; 13-gruppen 26 % ej 65 %; medvinnarmodell med α ersätter oberoende-antagandet) · §7 fasordning omkastad till backtest-före-UI, xG-fasen utgår · §4 F3/F4 följer nya matematiken · §8 risker omprioriterade.
+>
+> **Ändringar i v0.3** — efter arkivimport och α-kalibrering:
+> §6.3 **α̂ = 1,068** kalibrerad mot 246 omgångar × 4 vinstgrupper; en skalär räcker, risken avförd · §6.1 minimiutdelningsgränsen rättad från 1 kr till **~15 kr** (~23 % av omgångarna, inte 30 %) · §6.3 oberoende-antagandet nedgraderat från katastrofal till **måttlig** felkälla (1,2–1,3×, inte storleksordningar) · §3.3 Europatipset har odds från **#2051**, ger 551 omgångar → totalt **~799** i stället för 248.
 
 ---
 
@@ -79,7 +82,10 @@ Svenska Spel har ett publikt, onyckelat API som communityn använt länge:
 
 - `/draw/1/{produkt}/draws/{n}` fungerar för historiska omgångar tillbaka till **#4267 (jan 2013)**. Europatipset ligger på samma path (`/draw/1/europatipset/`), identisk struktur. Topptipset kräver nyckel.
 - `/draw/1/{produkt}/draws/{n}/result` ger facit per match **och den verkliga utdelningstabellen** (vinnare + belopp per vinstgrupp) samt omsättning. Detta är kalibreringsmålet för medvinnarmodellen.
-- **Viktig begränsning:** på avgjorda omgångar nollställs `odds`, `favouriteOdds` och `fund`, men `startOdds` och `betMetrics` behålls. Odds finns från **#4720 (2021-12-18)** → **248 omgångar, ~4,8 år** användbar backtest.
+- **Viktig begränsning:** på avgjorda omgångar nollställs `odds`, `favouriteOdds` och `fund`, men `startOdds` och `betMetrics` behålls. Odds finns från:
+  - Stryktipset **#4720 (2021-12-18)** → ~248 omgångar
+  - Europatipset **#2051 (2021-04-07)** → ~551 omgångar (spelas ons+sön)
+  - **Totalt ~799 omgångar** användbar backtest, ~4,8 år.
 - Det finns **ingen** tidsserie-/historik-endpoint (`/betmetrics`, `/distribution`, `/history`, `/trend` ger alla HTTP 500). Arkivet ger exakt **en fryst rad per omgång**: öppningsodds parat med *slutgiltig* streckprocent. Detta ger en systematisk optimistisk skevhet i backtesten — uppmätt drift ~1,1 procentenhet — som hanteras som känslighetskurva, inte som gissad rabatt.
 - `rowPrice` = 1,00 kr bekräftad, vilket validerar omräkning omsättning → antal sålda rader.
 
@@ -99,7 +105,7 @@ Det här är ovanligt bra rådata — barfota/vagn/spår finns med, vilket är k
 **Beslut (2026-08-26): Svenska Spels egna odds är `p_modell` i v1.**
 
 - De ligger redan i samma svar (`odds` live, `startOdds` i hela arkivet), kräver ingen nyckel, och har uppmätt marginal **~3,6 %** — förvånansvärt skarpt, satt mot Kambi-marknaden snarare än mot streckprocenten.
-- Avgörande: **The Odds API finns inte i arkivet.** Backtesten över 248 omgångar kan bara byggas på Svenska Spels `startOdds`. Att göra dem primära håller backtest- och live-vägen identiska — vilket i sig är värt mycket.
+- Avgörande: **The Odds API finns inte i arkivet.** Backtesten över ~799 omgångar kan bara byggas på Svenska Spels `startOdds`. Att göra dem primära håller backtest- och live-vägen identiska — vilket i sig är värt mycket.
 - **The Odds API** (~500 anrop/mån gratis, Pinnacle m.fl.) blir valfri fas 3-förbättring, inte ett MVP-beroende. Dess täckning av Championship/League One/Two är overifierad — och det är just de lägre ligorna där folkets felstreckning väntas vara störst.
 - Byggs bakom utbytbart oddskälle-lager så alternativ kan A/B-testas på Brier score över tid.
 
@@ -220,7 +226,7 @@ Två konsekvenser: 13-gruppen är bara 26 %, inte 65 %. Och 12+11+10 = 33,6 % ä
 **Två mekanismer som inte fanns i v0.1 och som båda påverkar EV kraftigt:**
 
 - **Extra tillskjuten pott till 13-gruppen.** I ~40 % av omgångarna är 13-andelen inte 26 % utan 0,39–0,73 av omsättningen. Det förklaras *inte* av att föregående omgång var otagen (verifierat: överskott uppstår även efter tagna omgångar) — källan är extern. Effekten är stor nog att dominera EV: **vilken omgång man spelar betyder sannolikt mer än vilka rader man spelar.**
-- **Minimiutdelningsregel i 10-gruppen.** När antalet 10-rättare överstiger ~230 000 sätts utdelningen till exakt 0 — beloppet skulle understiga 1 kr och betalas inte ut. Inträffar i ~30 % av omgångarna. Måste modelleras explicit, annars krediteras EV till en grupp som ofta betalar noll.
+- **Minimiutdelningsregel i 10-gruppen.** När utdelningen per vinnare skulle bli under **~15 kr** betalas gruppen inte ut alls (amount = 0). Verifierat mot 98 omgångar: högsta nollade 14,40 kr, lägsta utbetalda 16,24 kr — ren separation. Inträffar i **23 av 98 omgångar (~23 %)**, och då faller hela 16,1 % av poolen bort. Måste modelleras explicit, annars krediteras EV till en grupp som ofta betalar noll — och 10-gruppen är den grupp en genomsnittlig rad oftast träffar. *(En första gissning på 1 kr var fel: de nollade omgångarna hade implicita utdelningar på 3,70–14,40 kr.)* Utdelning avrundas dessutom nedåt till hela kronor.
 
 ### 6.2 Korrekt EV-formel
 
@@ -235,15 +241,35 @@ EV(rad) = Σ_{k=10..13}  andel_k · omsättning · P_modell(exakt k rätt) · E[
 
 ### 6.3 Medvinnarmodellen (ersätter oberoende-antagandet)
 
-Oberoende-antagandet är inte en liten förenkling. Omgång 4967 hade 21,5M sålda rader mot 1 594 323 möjliga (13,5 rader per mönster i snitt) men bara **4** vinnare på 13 rätt — oberoende förutsäger tvåsiffrigt fler. Folk spelar system, vilket korrelerar deras rader.
-
-Ersätts av en popularitetsmodell med skalär exponent α:
+Folk spelar system, vilket korrelerar deras rader. Oberoende-antagandet underskattar därför hur mycket folket klumpar ihop sig på konsensusrader. Korrigeras med en popularitetsmodell med skalär exponent α:
 
 ```
 q_korr(rad) = Π q_i(tecken_i)^α / Z(α)     där  Z(α) = Π_i Σ_tecken q_i(tecken)^α
 ```
 
-`Z(α)` faktoriserar, så ingen summering över 1,59M rader behövs. α anpassas med MLE mot **248 omgångar × 4 vinstgrupper ≈ 992 observationer** av faktiska vinnarantal. Residualer kontrolleras per vinstgrupp: om en skalär inte räcker behövs α per grupp, vilket i sig är ett resultat om systemspel.
+`Z(α)` faktoriserar, så ingen summering över 1,59M rader behövs.
+
+**Kalibrerat 2026-08-26 mot 246 omgångar × 4 vinstgrupper = 984 observationer** (MLE):
+
+| Vinstgrupp | α per grupp | Median-residual (log10) | Inom faktor 2 |
+|---|---|---|---|
+| 13 rätt | 1,101 | −0,012 | 79 % |
+| 12 rätt | 1,093 | −0,008 | 92 % |
+| 11 rätt | 1,080 | −0,010 | 97 % |
+| 10 rätt | 1,063 | −0,007 | 99 % |
+
+**α̂ = 1,068 samlat.** Resultatet är gott på tre punkter: α stabiliserar sig (största risken avförd), grupperna ligger tätt (1,06–1,10) så **en skalär räcker** — ingen α per vinstgrupp behövs, och medianresidualerna är i praktiken noll (~2 % fel).
+
+**Korrigering av tidigare uppskattning:** oberoende-antagandet är en *måttlig*, inte katastrofal, felkälla. Kontroll mot omgång 4967 (23,4M rader, faktiskt 4/71/1219/13364 vinnare):
+
+| Grupp | Faktiskt | α=1 | α=1,068 |
+|---|---|---|---|
+| 13 | 4 | 1,8 (0,45×) | 1,4 (0,34×) |
+| 12 | 71 | 84,6 (1,19×) | 70,6 (0,99×) |
+| 11 | 1219 | 1577 (1,29×) | 1392 (1,14×) |
+| 10 | 13364 | 16372 (1,23×) | 15057 (1,13×) |
+
+Oberoende är alltså ~1,2–1,3× fel på de stora grupperna, inte storleksordningar. 13-gruppen har hög varians på enstaka omgångar (4 vinnare är ett litet tal), vilket är väntat och syns i den högre spridningen ovan.
 
 **Bankroll:** **fast andel av bankrollen med hårt tak per omgång** — inte Kelly. Kelly förutsätter upprepade spel; vid ~1e-5 vinstsannolikhet och 2 omgångar/vecka ligger asymptotiken bortom en livstid, och Kelly-ramverket lånar falsk stringens åt vad som i praktiken är "små fasta insatser". Appen visar rekommenderad insats men uppmuntrar aldrig höjning efter förlust.
 
@@ -275,7 +301,7 @@ q_korr(rad) = Π q_i(tecken_i)^α / Z(α)     där  Z(α) = Π_i Σ_tecken q_i(t
 |---|---|---|
 | **Permanent dataförlust på live-fält** | **Säker om inget görs** | Fas 0-daemon **nu** — `odds`/`fund`/streckrörelse nollställs vid avgjord omgång och kan aldrig återskapas |
 | Ingen verklig edge efter avdrag (40,3 %) | **Hög** | Beslutsgrind fas 2 *före* UI-bygge; appens värde är även disciplin + mätning |
-| α stabiliserar sig inte / en skalär räcker inte | Medel | Anpassa mot 992 observationer före all appkod; residualanalys per vinstgrupp → α per grupp vid behov |
+| ~~α stabiliserar sig inte~~ | **AVFÖRD** | Kalibrerad 2026-08-26: α̂=1,068, grupperna inom 1,06–1,10, medianresidual ~0. En skalär räcker (§6.3) |
 | Backtestens tidsskevhet (öppningsodds vs slutstreck) | **Säker, ~1,1 pp** | δ-känslighetskurva {0; 0,5; 1; 1,5; 2} pp i stället för gissad rabatt; mät verklig drift ur fas 0-snapshots |
 | Självbedrägeri vid tröskeltrimning | Hög | Förregistrerat rutnät, testmängd rörs en gång, redovisa ROI både med och utan 13-gruppen |
 | Svenska Spel stänger/ändrar API:t | Medel | Abstraktionslager, egna snapshots, skrapfallback |
@@ -321,6 +347,25 @@ Utförd mot live-API:er. Alla siffror nedan är uppmätta, inte antagna.
 5. **Ingen historik-endpoint** → arkivets tidsskevhet ~1,1 pp är irreducerbar, hanteras som känslighetskurva.
 
 **ATG-detaljer att inte snubbla på:** vinnarodds i hundradelar (989 = 9,89). `betDistribution` i **hundradelar av procent** (404 = 4,04 %) — summerar till 10000 per lopp, verifierat i V85/V86/V5/V4. *(Ett första antagande om tiondels procent var fel och gav 10× för höga streckprocent; skalan bekräftades genom att summera per lopp.)* Lagra nativt heltal, konvertera först vid presentation. Kalendern roterar mellan V75/V85/V65/V64 m.fl. — pooltyp måste vara kolumn, aldrig hårdkodad.
+
+### Fas 1-resultat (2026-08-26)
+
+**α-kalibreringen lyckades.** 246 omgångar, 984 vinnarobservationer, MLE över α:
+
+- **α̂ = 1,068.** Per vinstgrupp: 13→1,101, 12→1,093, 11→1,080, 10→1,063.
+- Grupperna ligger inom 1,06–1,10 ⇒ **en skalär räcker**, ingen α per grupp behövs.
+- Medianresidualer −0,007 till −0,012 i log10 (~2 % fel). Inom faktor 2: 79 % (13 rätt), 92 %, 97 %, 99 %.
+
+Detta avför den största risken (R1 i planen): om α inte stabiliserat sig hade inget nedströms varit värt att bygga.
+
+**Rättelse av två tidigare antaganden:**
+
+1. Minimiutdelningsgränsen är **~15 kr**, inte 1 kr. Verifierat mot 98 omgångar med ren separation (14,40 vs 16,24 kr). Inträffar i 23 av 98 omgångar.
+2. Oberoende-antagandet är en **måttlig** felkälla, inte katastrofal. Kontroll mot omgång 4967 visar 1,2–1,3× fel på de stora grupperna, inte storleksordningar. α=1,068 pressar felet till 0,99–1,14×.
+
+**Vad fas 1 *inte* visade:** om det finns en edge. Modellen kan nu förutsäga medvinnare väl, men det säger inget om huruvida `p_marknad` vs `p_streck`-divergensen överlever 40,3 % avdrag. Det avgörs av fas 2.
+
+---
 
 **Vad spiken *inte* visade:** att det finns en edge. Signalen är synlig i datan (tydliga divergenser mellan streck och odds i både fotboll och trav), men om den överlever 40,3 % avdrag avgörs först av backtesten i fas 2. Detta är två olika påståenden och ska hållas isär.
 
