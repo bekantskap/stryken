@@ -261,48 +261,67 @@ export function sampleRow(dists: readonly SignProbs[], rnd: () => number): Row {
 export function topEvRows(d: DrawData, alpha: number, n: number): { row: Row; ev: number }[] {
   const SIGNS = ['1', 'X', '2'] as const
   const nMatches = d.model.length
+  const total = 3 ** nMatches
 
-  // Förberäkna per match: modellsannolikhet och folkets α-viktade andel.
-  const mHit: number[][] = []
-  const cHit: number[][] = []
+  // Förberäkna per match och tecken. Flat Float64Array: [match*3 + tecken].
+  const mHit = new Float64Array(nMatches * 3)
+  const cHit = new Float64Array(nMatches * 3)
   for (let i = 0; i < nMatches; i++) {
     const m = d.model[i]!
     const c = d.crowd[i]!
     const w = signWeights(c, alpha)
-    mHit.push([m.one, m.x, m.two])
-    cHit.push([w.one / w.z, w.x / w.z, w.two / w.z])
+    mHit[i * 3] = m.one
+    mHit[i * 3 + 1] = m.x
+    mHit[i * 3 + 2] = m.two
+    cHit[i * 3] = w.one / w.z
+    cHit[i * 3 + 1] = w.x / w.z
+    cHit[i * 3 + 2] = w.two / w.z
   }
+
+  // Poolstorlek och minimiutdelning per vinstgrupp är radoberoende.
+  const pools = new Float64Array(14)
+  for (const tier of TIERS) pools[tier] = d.netSaleOre * TIER_SHARE[tier]
+
+  // Återanvänd DP-buffertar i stället för att allokera per rad.
+  const polyM = new Float64Array(nMatches + 1)
+  const polyC = new Float64Array(nMatches + 1)
 
   const best: { row: Row; ev: number }[] = []
   let worstKept = -Infinity
-
-  const idx = new Array<number>(nMatches).fill(0)
-  const total = 3 ** nMatches
+  const idx = new Uint8Array(nMatches)
 
   for (let counter = 0; counter < total; counter++) {
-    // Bygg sannolikhetsvektorer för aktuell kombination.
-    const mv: number[] = []
-    const cv: number[] = []
+    // Poisson-binomial-DP in-place för både modell och folk.
+    polyM.fill(0)
+    polyC.fill(0)
+    polyM[0] = 1
+    polyC[0] = 1
     for (let i = 0; i < nMatches; i++) {
-      mv.push(mHit[i]![idx[i]!]!)
-      cv.push(cHit[i]![idx[i]!]!)
+      const pm = mHit[i * 3 + idx[i]!]!
+      const pc = cHit[i * 3 + idx[i]!]!
+      for (let k = i + 1; k > 0; k--) {
+        polyM[k] = polyM[k]! * (1 - pm) + polyM[k - 1]! * pm
+        polyC[k] = polyC[k]! * (1 - pc) + polyC[k - 1]! * pc
+      }
+      polyM[0] = polyM[0]! * (1 - pm)
+      polyC[0] = polyC[0]! * (1 - pc)
     }
-    const pModel = poissonBinomial(mv)
-    const pCrowd = poissonBinomial(cv)
 
     let ev = 0
     for (const tier of TIERS) {
-      const pExact = pModel[tier] ?? 0
+      const pExact = polyM[tier]!
       if (pExact <= 0) continue
-      const lambdaOthers = Math.max(0, d.totalRows * (pCrowd[tier] ?? 0) - 1)
-      const poolOre = d.netSaleOre * TIER_SHARE[tier]
-      if (isBelowMinDividend(poolOre, lambdaOthers + 1)) continue
-      ev += pExact * poolOre * expectedInverseWinners(lambdaOthers)
+      const lambdaOthers = d.totalRows * polyC[tier]! - 1
+      const lam = lambdaOthers > 0 ? lambdaOthers : 0
+      const poolOre = pools[tier]!
+      if (isBelowMinDividend(poolOre, lam + 1)) continue
+      ev += pExact * poolOre * expectedInverseWinners(lam)
     }
 
     if (best.length < n || ev > worstKept) {
-      const row = idx.map((k) => SIGNS[k]!) as Row
-      best.push({ row, ev })
+      const row: ('1' | 'X' | '2')[] = new Array(nMatches)
+      for (let i = 0; i < nMatches; i++) row[i] = SIGNS[idx[i]!]!
+      best.push({ row: row as Row, ev })
       best.sort((a, b) => b.ev - a.ev)
       if (best.length > n) best.pop()
       worstKept = best[best.length - 1]?.ev ?? -Infinity
@@ -310,8 +329,12 @@ export function topEvRows(d: DrawData, alpha: number, n: number): { row: Row; ev
 
     // Inkrementera bas-3-räknaren.
     for (let i = nMatches - 1; i >= 0; i--) {
-      idx[i] = (idx[i]! + 1) % 3
-      if (idx[i] !== 0) break
+      const v = idx[i]! + 1
+      if (v < 3) {
+        idx[i] = v
+        break
+      }
+      idx[i] = 0
     }
   }
 
