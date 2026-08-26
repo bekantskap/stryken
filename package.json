@@ -1,0 +1,28 @@
+{
+  "name": "edge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "+EV-analys för Stryktipset, Europatipset och V75",
+  "scripts": {
+    "capture": "tsx scripts/capture.ts",
+    "import-archive": "tsx scripts/import-archive.ts",
+    "calibrate": "tsx scripts/calibrate-alpha.ts",
+    "backtest": "tsx scripts/backtest.ts",
+    "db:push": "drizzle-kit push",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types test/*.test.ts"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.4",
+    "drizzle-orm": "^0.38.3",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/ws": "^8.5.13",
+    "drizzle-kit": "^0.30.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
