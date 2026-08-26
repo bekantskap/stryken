@@ -88,6 +88,26 @@ export function signWeights(dist: SignProbs, alpha: number): SignProbs & { z: nu
 }
 
 /**
+ * Drar sannolikheterna i `from` mot `toward` med `amount` (0–1 i sannolikhet,
+ * dvs. 0,011 = 1,1 procentenheter på det tecken som flyttas mest).
+ *
+ * Används för δ-känslighetskurvan i backtesten: arkivet parar öppningsodds med
+ * slutgiltig streckprocent, så vår p_marknad är systematiskt "för tidig".
+ * Marknaden rör sig under veckan delvis mot samma information folket har.
+ * I stället för att gissa en rabatt mäter vi ROI som funktion av δ.
+ */
+export function oddsShrinkToward(from: SignProbs, toward: SignProbs, amount: number): SignProbs {
+  const a = Math.max(0, Math.min(1, amount))
+  const raw = {
+    one: from.one * (1 - a) + toward.one * a,
+    x: from.x * (1 - a) + toward.x * a,
+    two: from.two * (1 - a) + toward.two * a,
+  }
+  const s = raw.one + raw.x + raw.two
+  return s > 0 ? { one: raw.one / s, x: raw.x / s, two: raw.two / s } : from
+}
+
+/**
  * Poisson-binomial: fördelningen över "antal rätt" när match i träffas med
  * sannolikhet p_i, oberoende mellan matcher.
  *
