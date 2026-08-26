@@ -2,13 +2,15 @@
 
 ## En +EV-analysapp för Stryktipset, Europatipset och V75
 
-**Version:** 0.3 (α kalibrerad mot 984 observationer)
+**Version:** 0.4 (beslutsgrind genomförd)
 **Datum:** 2026-08-26 (v0.1: 2026-08-25)
 **Ägare:** Alex
-**Status:** Fas 1 klar så nära backtesten; nästa steg är fas 2 (beslutsgrind)
+**Status:** Fas 2 klar. **Beslutsgrinden gav NEJ** — ingen edge påvisad (§12)
 
 > **Ändringar i v0.2** — efter mätning mot live-API:er och 68 verkliga utdelningstabeller (§11):
 > §3.1/§3.3 datakällor verifierade, tipsxtra-beroendet utgår, SvS-odds blir `p_modell` · §6 EV-matematiken omskriven (utbetalning 59,7 % ej 65 %; 13-gruppen 26 % ej 65 %; medvinnarmodell med α ersätter oberoende-antagandet) · §7 fasordning omkastad till backtest-före-UI, xG-fasen utgår · §4 F3/F4 följer nya matematiken · §8 risker omprioriterade.
+>
+> **Ändringar i v0.4** — fas 2 genomförd: **beslutsgrinden gav NEJ** (§12). Ingen edge påvisad; trimmad ROI −94 till −98 % vid alla trösklar och alla δ. Optimizer's curse dokumenterad. Systemgeneratorn byggs INTE.
 >
 > **Ändringar i v0.3** — efter arkivimport och α-kalibrering:
 > §6.3 **α̂ = 1,068** kalibrerad mot 246 omgångar × 4 vinstgrupper; en skalär räcker, risken avförd · §6.1 minimiutdelningsgränsen rättad från 1 kr till **~15 kr** (~23 % av omgångarna, inte 30 %) · §6.3 oberoende-antagandet nedgraderat från katastrofal till **måttlig** felkälla (1,2–1,3×, inte storleksordningar) · §3.3 Europatipset har odds från **#2051**, ger 551 omgångar → totalt **~799** i stället för 248.
@@ -321,6 +323,46 @@ Oberoende är alltså ~1,2–1,3× fel på de stora grupperna, inte storleksordn
 5. Spelfil via ombud (butiksinlämning av stora system) — hur funkar det i praktiken 2026?
 6. Vill vi logga *faktiskt spelade* system i appen (manuell inmatning) för äkta ROI-tracking? (Rekommenderas.)
 7. Namn på appen. "Edge" är arbetsnamn — förslag välkomna.
+
+---
+
+## 12. Fas 2: backtestresultat — BESLUTSGRINDEN (2026-08-26)
+
+**Ingen edge påvisad. Grinden gav NEJ.**
+
+Backtest över 147 träningsomgångar (4721–4868). Testmängden (99 omgångar) är fortfarande orörd.
+
+| EV-tröskel | Trimmad ROI | Rå ROI | Andel från EN vinst |
+|---|---|---|---|
+| 1,0 | **−97,6 %** | −8,7 % | 88 % |
+| 1,1 | **−98,0 %** | −1,7 % | 90 % |
+| 1,2 | **−97,9 %** | +9,4 % | 92 % |
+| 1,3 | **−96,1 %** | +24,6 % | 92 % |
+| 1,5 | **−93,7 %** | +71,1 % | 92 % |
+
+δ-känslighetskurvan är platt negativ: trimmad ROI −97,6 % till −97,9 % för alla δ ∈ {0; 0,5; 1,0; 1,5; 2,0} pp.
+
+**Varför de råa plussiffrorna inte är en edge:** 88–92 % av all avkastning kommer från *en enda vinst*. Att exkludera 13-gruppen ändrar ingenting (identiska siffror), eftersom vinsten låg i 12-gruppen. Det är brus.
+
+### Två metodfynd värda att behålla
+
+**1. Optimizer's curse.** Att maximera modell-EV över hela radrymden maximerar *modellfel*, inte värde. Omgång 4721: toppraden fick modell-EV 8,58 kr/kr och förutsades ha 1,11 medvinnare på 12 rätt. Faktiskt antal: **8 506** — fel med faktor ~7 700. Radens utfall: 4 rätt, 0 kr.
+
+α-modellen är inte trasig — på facitrader ligger kvoten modell/faktiskt på 0,7–1,8. Men den kalibrerades *på facitrader* och extrapolerar katastrofalt på de extremrader en fri sökning plockar. Motgiftet (`topEvRowsConstrained`, krav på minsta 13-sannolikhet) förbättrar rått utfall från −94,6 % till −22,7 %, men inte till plus.
+
+**2. Varken medelvärde eller median duger som huvudmått.** Medelvärdet domineras av enstaka träffar (en 13-träff vände −78 % till +363 %). Medianen är alltid −100 % eftersom de flesta omgångar ger noll. Bootstrap-p50 hjälper inte — träffen ligger i nästan varje resampling. **Trimmat medelvärde (±5 %)** är måttet som svarar på "bär strategin utan tur?".
+
+### Vad detta betyder
+
+Enligt beslutsgrinden i §7: **bygg ingen systemgenerator.** Det utfallet är ett resultat, inte ett misslyckande — det var precis vad grinden fanns till för att avgöra, och den kostade fas 0–2 i stället för månader av spelande.
+
+Vad som *inte* är uteslutet, och som kan prövas härnäst om intresse finns:
+
+- **Extrapott-signalen** (§6.1): i ~40 % av omgångarna får 13-gruppen tillskjuten pott, ibland 0,73 av omsättningen mot normala 0,26. Att spela *enbart* dessa omgångar är en helt annan strategi än radurval, och den är obeprövad. Kräver att öppen fråga §9.1 besvaras först — annonseras potten före spelstopp?
+- **Europatipset** (551 omgångar) är ännu inte backtestat.
+- **V75/V85** — travdatan har ingen marknadsoddsgenväg och är ett separat problem.
+
+Appen har fortfarande värde som analysverktyg och som mätinstrument: streckrörelse, felstreckningar, kalibreringslogg. Men den ska inte generera spelförslag på nuvarande grund.
 
 ---
 
