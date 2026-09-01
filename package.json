@@ -11,7 +11,9 @@
     "backtest": "node --env-file-if-exists=.env node_modules/.bin/tsx scripts/backtest.ts",
     "db:push": "node --env-file-if-exists=.env node_modules/.bin/drizzle-kit push",
     "typecheck": "tsc --noEmit",
-    "test": "node --test --experimental-strip-types test/*.test.ts"
+    "test": "node --test --experimental-strip-types test/*.test.ts",
+    "analyse": "node --env-file-if-exists=.env node_modules/.bin/tsx scripts/analyse.ts",
+    "fetch-results": "node --env-file-if-exists=.env node_modules/.bin/tsx scripts/fetch-results.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",

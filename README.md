@@ -2,13 +2,15 @@
 
 +EV-analys för Stryktipset, Europatipset och V75/V85. Se [prd-edge.md](prd-edge.md) för produktbeskrivning och matematik.
 
-**Status:** fas 0 (snapshot-daemon). Ingen edge är ännu påvisad — det avgörs av backtesten i fas 2.
+**Status:** användbar som analysverktyg för Stryktipset.
+
+**Ingen edge påvisad.** Backtesten (PRD §12) gav trimmad ROI −94 till −98 % vid alla testade trösklar. Systemgeneratorn byggs därför inte. Appen visar var marknaden och folket skiljer sig — inte att det går att tjäna pengar på det.
 
 ## Varför fas 0 först
 
 Live-fälten `odds`, `favouriteOdds`, `fund` och streckrörelsen **nollställs när en omgång avgörs** och kan aldrig hämtas i efterhand. Varje omgång utan capture är permanent förlorad data. Daemonen körs därför innan något annat byggs.
 
-Allt annat kan vänta: Svenska Spels arkiv har 248 färdiga omgångar (dec 2021→) med öppningsodds, slutstreck, facit och verkliga utdelningstabeller, och de går ingenstans.
+Allt annat kan vänta: Svenska Spels arkiv har 801 färdiga omgångar (Stryktipset från dec 2021, Europatipset från apr 2021) med öppningsodds, slutstreck, facit och verkliga utdelningstabeller, och de går ingenstans.
 
 ## Kom igång
 
@@ -16,8 +18,19 @@ Allt annat kan vänta: Svenska Spels arkiv har 248 färdiga omgångar (dec 2021�
 npm install
 cp .env.example .env          # fyll i DATABASE_URL från Neon
 npm run db:push               # skapa tabellerna
-npm run capture               # en manuell körning
+npm run capture               # hämta aktuell omgång
+npm run analyse               # ← värdetabellen
 ```
+
+## Daglig användning
+
+```bash
+npm run analyse                      # aktuell öppen omgång
+npm run analyse -- --draw 4968       # en specifik omgång (med facit om avgjord)
+npm run analyse -- --product europatipset
+```
+
+Visar per match: streckprocent, marknadssannolikhet, värdekvot, streckrörelse sedan omgången öppnade, och flaggor för över-/understreckning. Streckrörelsen kommer från capture-daemonens snapshots och går inte att få i efterhand.
 
 Torrkörning utan databas — visar vad som skulle skrivas:
 
@@ -47,7 +60,11 @@ Vercels free tier tillåter bara cron 1×/dygn med lös precision, därför ligg
 | `src/lib/atg.ts` | Klient mot ATG:s racinginfo-API |
 | `src/lib/ingest.ts` | Skriver omgång + snapshot (delad live/arkiv) |
 | `src/db/schema.ts` | Drizzle-schema |
-| `scripts/capture.ts` | Fas 0-daemonen |
+| `scripts/capture.ts` | Snapshot-daemonen (var 15:e min) |
+| `scripts/fetch-results.ts` | Hämtar facit när omgångar avgjorts |
+| `scripts/analyse.ts` | Värdetabellen — verktygets kärna |
+| `scripts/backtest.ts` | Backtest med beslutsgrind |
+| `scripts/calibrate-alpha.ts` | Kalibrerar medvinnarmodellen |
 | `scripts/dry-run.ts` | Torrkörning mot live-API utan databas |
 
 ## Fällor som redan kostat tid
@@ -58,8 +75,23 @@ Tre saker i datan ser rimliga ut i fel skala och ger inga felmeddelanden:
 - **Streckprocent** är heltal som summerar till 99–101, inte 100. Normaliseras mot radsumman; att dela med 100 ger fel som kompounderar över 13 matcher.
 - **ATG:s `betDistribution`** är hundradelar av procent (404 = 4,04 %), inte tiondelar. Summerar till 10000 per lopp — det är kontrollen som avslöjar skalan. Vinnarodds är hundradelar (989 = 9,89).
 
-## Nästa steg
+## Vad som är gjort och vad som inte är det
 
-1. **Fas 1** — arkivimport 4720–4967, kalibrera medvinnarmodellens α mot 992 observationer, implementera korrekt EV-formel (PRD §6.2).
-2. **Fas 2** — backtest med tidsdelning och δ-känslighetskurva → beslutsgrind.
-3. **Fas 3** — UI, men bara om grinden passeras.
+Klart:
+
+- Snapshot-daemon i drift (GitHub Actions, var 15:e min)
+- Arkivimport: 801 omgångar med odds, streck, facit och verkliga utdelningar
+- Medvinnarmodell kalibrerad: α = 1,068 (Stryktipset), 1,045 (Europatipset)
+- Backtest med beslutsgrind → **ingen edge**
+- Värdetabell för Stryktipset
+
+Byggs inte:
+
+- **Systemgenerator** — beslutsgrinden gav nej
+- **Extrapott-signal** — potten annonseras inte före spelstopp (PRD §9.1)
+- **Egen xG-modell** — fel måltavla, se PRD §7
+
+Möjligt senare:
+
+- Europatipset-backtest (551 omgångar importerade, ej körda)
+- V75/V85 (ATG-data samlas redan)

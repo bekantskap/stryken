@@ -35,3 +35,12 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: npm run capture
+
+      # Hämtar facit för omgångar som avgjorts. Utan detta får live-capturade
+      # omgångar aldrig något facit, och historikloggen (F5) slutar fungera
+      # framåt — upptäcktes när 4968 saknade facit trots att den avgjorts.
+      # Idempotent och billig: hoppar över omgångar som redan har facit.
+      - name: Hämta facit för avgjorda omgångar
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npm run fetch-results

@@ -24,6 +24,14 @@ export async function ingestResult(
   drawNumber: number,
   raw: RawResult,
 ): Promise<ResultIngestOutcome> {
+  // Inställda omgångar: cancelled=true, tomma outcomes, noll utbetalning.
+  // De får ALDRIG in i databasen — nollade payout_tier-rader förorenar
+  // α-kalibreringen (en omgång med 0 vinnare på alla grupper är inte en
+  // observation av folkets beteende, den är frånvaro av en omgång).
+  if (raw['cancelled'] === true) {
+    return { status: 'skipped', reason: 'omgången är inställd (cancelled)' }
+  }
+
   const drawRows = await db
     .select({ id: draw.id })
     .from(draw)
