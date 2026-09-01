@@ -1,6 +1,6 @@
 # Edge
 
-+EV-analys för Stryktipset, Europatipset och V75/V85. Se [prd-edge.md](prd-edge.md) för produktbeskrivning och matematik.
+Analysverktyg för Stryktipset och Europatipset (V75/V85-data samlas). Se [prd-edge.md](prd-edge.md) för produktbeskrivning och matematik.
 
 **Status:** användbar som analysverktyg för Stryktipset.
 
@@ -125,7 +125,8 @@ Byggs inte:
 - **Extrapott-signal** — potten annonseras inte före spelstopp (PRD §9.1)
 - **Egen xG-modell** — fel måltavla, se PRD §7
 
+Europatipset backtestat (PRD §12): samma slutsats, tydligare — rå ROI −79 till −85 % vid alla trösklar över 290 omgångar.
+
 Möjligt senare:
 
-- Europatipset-backtest (551 omgångar importerade, ej körda)
 - V75/V85 (ATG-data samlas redan)

@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Edge — Stryktipset',
+  title: 'Edge — Stryktipset & Europatipset',
   description: 'Streck vs marknad, värdetabell och systemförslag',
 }
 

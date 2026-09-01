@@ -2,13 +2,15 @@
 
 ## En +EV-analysapp för Stryktipset, Europatipset och V75
 
-**Version:** 0.5 (extrapott-spåret stängt)
+**Version:** 0.6 (Europatipset backtestat)
 **Datum:** 2026-08-26 (v0.1: 2026-08-25)
 **Ägare:** Alex
 **Status:** Fas 2 klar. **Beslutsgrinden gav NEJ** — ingen edge påvisad (§12)
 
 > **Ändringar i v0.2** — efter mätning mot live-API:er och 68 verkliga utdelningstabeller (§11):
 > §3.1/§3.3 datakällor verifierade, tipsxtra-beroendet utgår, SvS-odds blir `p_modell` · §6 EV-matematiken omskriven (utbetalning 59,7 % ej 65 %; 13-gruppen 26 % ej 65 %; medvinnarmodell med α ersätter oberoende-antagandet) · §7 fasordning omkastad till backtest-före-UI, xG-fasen utgår · §4 F3/F4 följer nya matematiken · §8 risker omprioriterade.
+>
+> **Ändringar i v0.6** — Europatipset backtestat (290 omgångar): samma slutsats som Stryktipset men tydligare, rå ROI negativ vid alla trösklar. Produktväljare i UI:t.
 >
 > **Ändringar i v0.5** — §9.1 besvarad med live-data: extrapotten annonseras **inte** före spelstopp (verifierat mot omgång 4968, +5,3 Mkr utan förvarning i något fält). Extrapott-spåret därmed stängt.
 >
@@ -347,6 +349,20 @@ Backtest över 147 träningsomgångar (4721–4868). Testmängden (99 omgångar)
 δ-känslighetskurvan är platt negativ: trimmad ROI −97,6 % till −97,9 % för alla δ ∈ {0; 0,5; 1,0; 1,5; 2,0} pp.
 
 **Varför de råa plussiffrorna inte är en edge:** 88–92 % av all avkastning kommer från *en enda vinst*. Att exkludera 13-gruppen ändrar ingenting (identiska siffror), eftersom vinsten låg i 12-gruppen. Det är brus.
+
+### Europatipset — samma svar, tydligare (2026-09-01)
+
+Backtest över 290 träningsomgångar (av 551 importerade), α = 1,045:
+
+| EV-tröskel | Trimmad ROI | Rå ROI |
+|---|---|---|
+| 1,0 | −97,4 % | −85,0 % |
+| 1,2 | −96,8 % | −82,6 % |
+| 1,5 | −95,8 % | −79,6 % |
+
+**Starkare bekräftelse än Stryktipset:** här är även den *råa* ROI:n negativ vid alla trösklar (−79 till −85 %), inte bara den trimmade. Ingen enskild lyckoträff maskerar resultatet — 290 omgångar ger stabilare siffror än Stryktipsets 147. δ-kurvan är platt negativ.
+
+Två produkter, olika ligor, olika spelarkollektiv, oberoende data — samma slutsats. Beslutsgrinden står.
 
 ### Två metodfynd värda att behålla
 

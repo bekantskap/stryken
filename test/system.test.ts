@@ -1,6 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { suggestSystem, validSystemSizes, expandRows } from '../src/lib/system.ts'
+import {
+  suggestSystem,
+  validSystemSizes,
+  expandRows,
+  isDegenerateDistribution,
+  biggestMove,
+} from '../src/lib/system.ts'
 import type { SignProbs } from '../src/lib/payout.ts'
 
 function mk(probs: [number, number, number][]) {
@@ -109,4 +115,30 @@ test('tecken skrivs i spelordning 1X2, inte sannolikhetsordning', () => {
   const sys = suggestSystem(mk(probs), 2, 100)
   const g = sys.picks.find((p) => p.signs.length === 2)!
   assert.deepEqual(g.signs, ['1', '2'], 'ska vara spelordning')
+})
+
+test('degenererad streckfördelning känns igen', () => {
+  // Verkliga skräpvärden ur europatipset #2604, första snapshot 71 h före
+  // spelstopp — innan tillräckligt många hunnit spela.
+  assert.equal(isDegenerateDistribution({ one: 1, x: 0, two: 0 }), true, '100/0/0')
+  assert.equal(isDegenerateDistribution({ one: 0.5, x: 0.47, two: 0.03 }), false, '50/47/3 har ingen nolla')
+  assert.equal(isDegenerateDistribution({ one: 0.96, x: 0.03, two: 0.01 }), true, 'ett tecken tar allt')
+  // Normala fördelningar ska passera.
+  assert.equal(isDegenerateDistribution({ one: 0.57, x: 0.21, two: 0.22 }), false)
+  assert.equal(isDegenerateDistribution({ one: 0.16, x: 0.27, two: 0.57 }), false)
+  assert.equal(isDegenerateDistribution({ one: 0.86, x: 0.09, two: 0.05 }), false, '86 % är högt men rimligt')
+})
+
+test('biggestMove ignorerar rörelse mätt mot skräpdata', () => {
+  const junk = { one: 1, x: 0, two: 0 }
+  const real = { one: 0.52, x: 0.26, two: 0.22 }
+  // Mot skräp: ingen flagga, trots 48 pp "rörelse".
+  assert.equal(biggestMove(junk, real), null)
+  // Mot riktig data: flaggar som vanligt.
+  const opening = { one: 0.4, x: 0.28, two: 0.32 }
+  const moved = { one: 0.55, x: 0.23, two: 0.22 }
+  const mv = biggestMove(opening, moved)
+  assert.ok(mv)
+  assert.equal(mv.sign, '1')
+  assert.ok(mv.deltaPp > 14)
 })

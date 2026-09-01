@@ -5,7 +5,10 @@ import { Controls } from './controls.tsx'
 
 export const dynamic = 'force-dynamic'
 
-const PRODUCT = 'stryktipset'
+const PRODUCTS = [
+  { value: 'stryktipset', label: 'Stryktipset' },
+  { value: 'europatipset', label: 'Europatipset' },
+] as const
 const SIZES = validSystemSizes(1200).filter((n) => n >= 8)
 
 function fmtPct(v: number, digits = 0) {
@@ -22,16 +25,19 @@ function vClass(v: number) {
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ draw?: string; rader?: string }>
+  searchParams: Promise<{ draw?: string; rader?: string; produkt?: string }>
 }) {
   const sp = await searchParams
+  const product = PRODUCTS.some((p) => p.value === sp.produkt)
+    ? sp.produkt!
+    : PRODUCTS[0].value
   const drawNumber = sp.draw ? Number(sp.draw) : undefined
   const wantRows = sp.rader ? Number(sp.rader) : 48
   const targetRows = SIZES.includes(wantRows) ? wantRows : 48
 
   const [view, all] = await Promise.all([
-    loadDrawView(PRODUCT, drawNumber),
-    listDraws(PRODUCT, 30),
+    loadDrawView(product, drawNumber),
+    listDraws(product, 30),
   ])
 
   if (!view) {
@@ -40,7 +46,7 @@ export default async function Page({
         <h1>Edge</h1>
         <div className="panel">
           <p className="empty">
-            Ingen omgång med snapshots hittad. Kör <code>npm run capture</code>.
+            Ingen omgång med snapshots hittad för {product}. Kör <code>npm run capture</code>.
           </p>
         </div>
       </main>
@@ -79,7 +85,9 @@ export default async function Page({
     <main className="wrap">
       <header className="top">
         <div>
-          <h1>Stryktipset #{view.drawNumber}</h1>
+          <h1>
+            {PRODUCTS.find((p) => p.value === product)?.label ?? product} #{view.drawNumber}
+          </h1>
           <div className="sub">
             Spelstopp{' '}
             {view.closeAt.toLocaleString('sv-SE', {
@@ -107,8 +115,10 @@ export default async function Page({
 
       <div className="panel">
         <Controls
+          products={PRODUCTS.map((p) => ({ value: p.value, label: p.label }))}
           draws={drawOptions}
           sizes={SIZES}
+          currentProduct={product}
           currentDraw={view.drawNumber}
           currentRows={targetRows}
         />

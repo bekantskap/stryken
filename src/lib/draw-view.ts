@@ -2,7 +2,14 @@ import { getDb } from '../db/client.ts'
 import { draw, event, snapshot, eventSnapshot, result } from '../db/schema.ts'
 import { eq, and, desc, asc } from 'drizzle-orm'
 import { oddsToProbabilities } from './parse.ts'
-import { suggestSystem, biggestMove, type MoveFlag, type Sign, type SystemSuggestion } from './system.ts'
+import {
+  suggestSystem,
+  biggestMove,
+  isDegenerateDistribution,
+  type MoveFlag,
+  type Sign,
+  type SystemSuggestion,
+} from './system.ts'
 import type { SignProbs } from './payout.ts'
 
 /**
@@ -77,7 +84,6 @@ export async function loadDrawView(
 
   const last = snaps[snaps.length - 1]
   if (!last) return null
-  const first = snaps[0]
 
   const rows = await db
     .select({
@@ -101,26 +107,37 @@ export async function loadDrawView(
     .where(eq(eventSnapshot.snapshotId, last.id))
     .orderBy(asc(event.eventNumber))
 
-  const openingRows =
-    first && first.id !== last.id
-      ? await db
-          .select({
-            eventNumber: event.eventNumber,
-            dist1: eventSnapshot.dist1,
-            distX: eventSnapshot.distX,
-            dist2: eventSnapshot.dist2,
-          })
-          .from(eventSnapshot)
-          .innerJoin(event, eq(event.id, eventSnapshot.eventId))
-          .where(eq(eventSnapshot.snapshotId, first.id))
-          .orderBy(asc(event.eventNumber))
-      : []
-  const openingByNum = new Map(
-    openingRows.map((r) => [
-      r.eventNumber,
-      { one: Number(r.dist1), x: Number(r.distX), two: Number(r.dist2) } as SignProbs,
-    ]),
-  )
+  // Välj första ANVÄNDBARA snapshot som referens för streckrörelse.
+  //
+  // Precis när en omgång öppnar rapporterar Svenska Spel degenererad
+  // streckdata (t.ex. 100/0/0) eftersom nästan ingen hunnit spela. Att mäta
+  // rörelse mot den ger falska utslag på 30–54 pp. Vi går därför framåt i
+  // tiden till första snapshot där fördelningen är meningsfull.
+  let openingByNum = new Map<number, SignProbs>()
+  for (const cand of snaps) {
+    if (cand.id === last.id) break
+    const candRows = await db
+      .select({
+        eventNumber: event.eventNumber,
+        dist1: eventSnapshot.dist1,
+        distX: eventSnapshot.distX,
+        dist2: eventSnapshot.dist2,
+      })
+      .from(eventSnapshot)
+      .innerJoin(event, eq(event.id, eventSnapshot.eventId))
+      .where(eq(eventSnapshot.snapshotId, cand.id))
+      .orderBy(asc(event.eventNumber))
+
+    const dists = candRows.map(
+      (r) => ({ one: Number(r.dist1), x: Number(r.distX), two: Number(r.dist2) }) as SignProbs,
+    )
+    // Kräv att i stort sett hela omgången har rimlig fördelning.
+    const bad = dists.filter(isDegenerateDistribution).length
+    if (dists.length > 0 && bad === 0) {
+      openingByNum = new Map(candRows.map((r, i) => [r.eventNumber, dists[i]!]))
+      break
+    }
+  }
 
   const facit = await db
     .select({ eventNumber: event.eventNumber, outcome: result.outcome })

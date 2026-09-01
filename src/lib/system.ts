@@ -156,12 +156,32 @@ export const MOVE_STRONG_PP = 12
 
 export type MoveFlag = { sign: Sign; deltaPp: number; strong: boolean }
 
+/**
+ * Är streckfördelningen degenererad, dvs. inte en meningsfull fördelning?
+ *
+ * Precis när en omgång öppnar har så få spelat att Svenska Spel rapporterar
+ * skräp — verifierat på europatipset #2604, första snapshot 71 h före
+ * spelstopp: match 7 visade 100/0/0 och match 13 visade 50/47/3. Nästa
+ * snapshot 2,4 h senare gav realistiska 57/21/22 respektive 17/24/59.
+ *
+ * Att jämföra mot sådan data ger falska rörelser på 30–54 pp. Verkliga
+ * rörelser ligger på median 3 pp (p90 = 12).
+ */
+export function isDegenerateDistribution(d: SignProbs): boolean {
+  // Ett tecken tar nästan allt, eller något tecken är exakt noll.
+  if (d.one >= 0.95 || d.x >= 0.95 || d.two >= 0.95) return true
+  if (d.one === 0 || d.x === 0 || d.two === 0) return true
+  return false
+}
+
 /** Största streckrörelsen för en match, om den överstiger tröskeln. */
 export function biggestMove(
   opening: SignProbs | undefined,
   current: SignProbs,
 ): MoveFlag | null {
   if (!opening) return null
+  // Skräpdata vid omgångens öppning ger falska rörelser — hoppa över.
+  if (isDegenerateDistribution(opening)) return null
   const deltas: { sign: Sign; d: number }[] = [
     { sign: '1', d: (current.one - opening.one) * 100 },
     { sign: 'X', d: (current.x - opening.x) * 100 },
