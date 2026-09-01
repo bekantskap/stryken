@@ -2,13 +2,15 @@
 
 ## En +EV-analysapp för Stryktipset, Europatipset och V75
 
-**Version:** 0.4 (beslutsgrind genomförd)
+**Version:** 0.5 (extrapott-spåret stängt)
 **Datum:** 2026-08-26 (v0.1: 2026-08-25)
 **Ägare:** Alex
 **Status:** Fas 2 klar. **Beslutsgrinden gav NEJ** — ingen edge påvisad (§12)
 
 > **Ändringar i v0.2** — efter mätning mot live-API:er och 68 verkliga utdelningstabeller (§11):
 > §3.1/§3.3 datakällor verifierade, tipsxtra-beroendet utgår, SvS-odds blir `p_modell` · §6 EV-matematiken omskriven (utbetalning 59,7 % ej 65 %; 13-gruppen 26 % ej 65 %; medvinnarmodell med α ersätter oberoende-antagandet) · §7 fasordning omkastad till backtest-före-UI, xG-fasen utgår · §4 F3/F4 följer nya matematiken · §8 risker omprioriterade.
+>
+> **Ändringar i v0.5** — §9.1 besvarad med live-data: extrapotten annonseras **inte** före spelstopp (verifierat mot omgång 4968, +5,3 Mkr utan förvarning i något fält). Extrapott-spåret därmed stängt.
 >
 > **Ändringar i v0.4** — fas 2 genomförd: **beslutsgrinden gav NEJ** (§12). Ingen edge påvisad; trimmad ROI −94 till −98 % vid alla trösklar och alla δ. Optimizer's curse dokumenterad. Systemgeneratorn byggs INTE.
 >
@@ -316,7 +318,9 @@ Oberoende är alltså ~1,2–1,3× fel på de stora grupperna, inte storleksordn
 
 ## 9. Öppna frågor
 
-1. **Annonseras den extra potten till 13-gruppen före spelstopp?** `fund` är null både på avgjorda och på nuvarande öppna omgång, så det går inte att avgöra ur arkivet. Fas 0-daemonen ska fånga `fund` och `extraInfo` genom en hel omgångscykel. Detta är den viktigaste öppna frågan: om potten annonseras i förväg är den **direkt spelbar**; om inte måste den estimeras.
+1. ~~**Annonseras den extra potten till 13-gruppen före spelstopp?**~~ **BESVARAD 2026-09-01: NEJ.**
+   Omgång 4968 fick extrapott (13-andel 0,439 mot bas 0,26 — cirka +5,3 Mkr). Daemonen fångade 15 snapshots från 72,9 h till 2,9 h före spelstopp: `fund` och `extraInfo` var **null i samtliga**. Genomgång av alla 23 toppnivåfält i sista snapshot före spelstopp visar inget fält som signalerar potten.
+   **Konsekvens:** extrapotten går inte att observera i förväg via detta API, och är därmed inte spelbar som signal. Den kan bara estimeras statistiskt (~40 % av omgångarna) eller upptäckas i efterhand. Det spåret är därmed stängt om inte en annan källa hittas (t.ex. Svenska Spels egen kommunikation/kampanjsidor).
 2. **Exakt tröskel för 10-gruppens minimiutdelning** — uppskattad till ~230 000 vinnare, bör fastställas exakt ur arkivet.
 3. **Vad förklarar överskottet till 13-gruppen?** Bomben-kopplad pott via `bombenDrawNum`? Marknadsföringspott? Avgör om det är prediktbart.
 4. Ska Topptipset (kräver API-nyckel från Svenska Spel — värt att ansöka?) och Powerplay in i scope senare?
@@ -358,7 +362,7 @@ Enligt beslutsgrinden i §7: **bygg ingen systemgenerator.** Det utfallet är et
 
 Vad som *inte* är uteslutet, och som kan prövas härnäst om intresse finns:
 
-- **Extrapott-signalen** (§6.1): i ~40 % av omgångarna får 13-gruppen tillskjuten pott, ibland 0,73 av omsättningen mot normala 0,26. Att spela *enbart* dessa omgångar är en helt annan strategi än radurval, och den är obeprövad. Kräver att öppen fråga §9.1 besvaras först — annonseras potten före spelstopp?
+- ~~**Extrapott-signalen**~~ — **stängd 2026-09-01.** Potten annonseras inte före spelstopp (§9.1), så den går inte att spela på. Verifierat mot omgång 4968, som fick +5,3 Mkr utan förvarning i något API-fält.
 - **Europatipset** (551 omgångar) är ännu inte backtestat.
 - **V75/V85** — travdatan har ingen marknadsoddsgenväg och är ett separat problem.
 
