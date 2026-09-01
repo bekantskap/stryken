@@ -1,0 +1,3 @@
+# Privat analysverktyg — ska inte indexeras.
+User-agent: *
+Disallow: /
