@@ -22,7 +22,23 @@ npm run capture               # hämta aktuell omgång
 npm run analyse               # ← värdetabellen
 ```
 
-## Daglig användning
+## Webbgränssnitt
+
+```bash
+npm run dev        # http://localhost:3000
+```
+
+Dropdowns för omgång och systemstorlek, värdetabell med färgkodade värdekvoter, systemförslag med markerade garderingar, och rörelsevarningar. Samma siffror som CLI:t — båda använder `src/lib/draw-view.ts`.
+
+**Deploy till Vercel:**
+
+1. Importera repot på [vercel.com/new](https://vercel.com/new)
+2. Lägg till miljövariabeln `DATABASE_URL` (samma Neon-sträng som lokalt)
+3. Valfritt: `CRON_SECRET` för att skydda `/api/capture`
+
+Free tier räcker — sidan är server-renderad och läser bara från Neon. `vercel.json` lägger en daglig cron på `/api/capture` som skyddsnät; den täta insamlingen (var 15:e min) ligger kvar i GitHub Actions eftersom Vercels gratis-cron bara klarar 1×/dygn.
+
+## CLI-användning
 
 **Få ett systemförslag:**
 

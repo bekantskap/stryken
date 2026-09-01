@@ -14,15 +14,23 @@
     "test": "node --test --experimental-strip-types test/*.test.ts",
     "analyse": "node --env-file-if-exists=.env node_modules/.bin/tsx scripts/analyse.ts",
     "fetch-results": "node --env-file-if-exists=.env node_modules/.bin/tsx scripts/fetch-results.ts",
-    "tips": "node --env-file-if-exists=.env node_modules/.bin/tsx scripts/tips.ts"
+    "tips": "node --env-file-if-exists=.env node_modules/.bin/tsx scripts/tips.ts",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
     "drizzle-orm": "^0.45.2",
+    "next": "^16.3.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
     "@types/ws": "^8.5.13",
     "drizzle-kit": "^0.31.10",
     "tsx": "^4.19.2",
