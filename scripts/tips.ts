@@ -18,7 +18,7 @@ import { getDb } from '../src/db/client.ts'
 import { draw, event, snapshot, eventSnapshot, result } from '../src/db/schema.ts'
 import { eq, and, desc, asc } from 'drizzle-orm'
 import { oddsToProbabilities } from '../src/lib/parse.ts'
-import { suggestSystem, validSystemSizes, expandRows, type Sign } from '../src/lib/system.ts'
+import { suggestSystem, validSystemSizes, expandRows, biggestMove, type Sign } from '../src/lib/system.ts'
 import type { SignProbs } from '../src/lib/payout.ts'
 import { BASE_PAYOUT_RATIO } from '../src/lib/payout.ts'
 
@@ -89,18 +89,18 @@ async function main() {
     return
   }
 
-  const snaps = await db
+  const allSnaps = await db
     .select({ id: snapshot.id, capturedAt: snapshot.capturedAt })
     .from(snapshot)
     .where(and(eq(snapshot.drawId, target.id), eq(snapshot.source, 'live')))
-    .orderBy(desc(snapshot.capturedAt))
-    .limit(1)
+    .orderBy(asc(snapshot.capturedAt))
 
-  const snap = snaps[0]
+  const snap = allSnaps[allSnaps.length - 1]
   if (!snap) {
     console.log(`Omgång ${target.drawNumber} saknar live-snapshot. Kör npm run capture.`)
     return
   }
+  const firstSnap = allSnaps[0]
 
   const rows = await db
     .select({
@@ -121,6 +121,28 @@ async function main() {
     .innerJoin(event, eq(event.id, eventSnapshot.eventId))
     .where(eq(eventSnapshot.snapshotId, snap.id))
     .orderBy(asc(event.eventNumber))
+
+  // Öppningsfördelning för att mäta streckrörelse.
+  const openingRows =
+    firstSnap && firstSnap.id !== snap.id
+      ? await db
+          .select({
+            eventNumber: event.eventNumber,
+            dist1: eventSnapshot.dist1,
+            distX: eventSnapshot.distX,
+            dist2: eventSnapshot.dist2,
+          })
+          .from(eventSnapshot)
+          .innerJoin(event, eq(event.id, eventSnapshot.eventId))
+          .where(eq(eventSnapshot.snapshotId, firstSnap.id))
+          .orderBy(asc(event.eventNumber))
+      : []
+  const openingByNum = new Map(
+    openingRows.map((r) => [
+      r.eventNumber,
+      { one: Number(r.dist1), x: Number(r.distX), two: Number(r.dist2) } as SignProbs,
+    ]),
+  )
 
   const matches: { eventNumber: number; label: string; model: SignProbs; crowd: SignProbs }[] = []
   for (const r of rows) {
@@ -169,18 +191,35 @@ async function main() {
   console.log()
 
   const covName = (n: number) => (n === 1 ? 'spik' : n === 2 ? 'halvgard.' : 'helgard.')
-  console.log(`  ${pad('#', 3)}${pad('match', 28)}${pad('tecken', 10)}${pad('typ', 11)}${pad('marknad', 9)}streck`)
-  console.log('  ' + '─'.repeat(72))
+  console.log(
+    `  ${pad('#', 3)}${pad('match', 28)}${pad('tecken', 9)}${pad('typ', 11)}${pad('marknad', 9)}${pad('streck', 8)}rörelse`,
+  )
+  console.log('  ' + '─'.repeat(84))
+  const moved: { num: number; label: string; sign: string; deltaPp: number; spiked: boolean }[] = []
   for (const p of sys.picks) {
     const fac = facitByNum.get(p.eventNumber)
     const hit = fac ? (p.signs.includes(fac) ? ' ✓' : ' ✗') : ''
     const facStr = fac ? ` [${fac}]${hit}` : ''
     const maxLabel = 28 - [...facStr].length
     const lbl = [...p.label].length > maxLabel ? [...p.label].slice(0, maxLabel - 1).join('') + '…' : p.label
+    const m = matches.find((x) => x.eventNumber === p.eventNumber)
+    const mv = m ? biggestMove(openingByNum.get(p.eventNumber), m.crowd) : null
+    const mvStr = mv
+      ? `${mv.sign}${mv.deltaPp >= 0 ? '+' : ''}${mv.deltaPp.toFixed(0)}pp${mv.strong ? ' ⚠' : ''}`
+      : ''
+    if (mv) {
+      moved.push({
+        num: p.eventNumber,
+        label: p.label,
+        sign: mv.sign,
+        deltaPp: mv.deltaPp,
+        spiked: p.signs.length === 1,
+      })
+    }
     console.log(
       `  ${pad(String(p.eventNumber), 3)}${pad(lbl + facStr, 28)}` +
-        `${pad(p.signs.join(''), 10)}${pad(covName(p.signs.length), 11)}` +
-        `${pad((p.coveredProb * 100).toFixed(0) + ' %', 9)}${(p.crowdProb * 100).toFixed(0)} %`,
+        `${pad(p.signs.join(''), 9)}${pad(covName(p.signs.length), 11)}` +
+        `${pad((p.coveredProb * 100).toFixed(0) + ' %', 9)}${pad((p.crowdProb * 100).toFixed(0) + ' %', 8)}${mvStr}`,
     )
   }
 
@@ -200,6 +239,22 @@ async function main() {
     }).length
     console.log()
     console.log(`  FACIT: systemet fick ${correct} av 13 rätt` + (correct === 13 ? ' — hela systemet träffade!' : ''))
+  }
+
+  // Rörelsevarning: stora streckrörelser betyder ofta ny information.
+  if (moved.length > 0) {
+    console.log()
+    console.log('  STRECKRÖRELSE sedan omgången öppnade:')
+    for (const m of moved.sort((a, b) => Math.abs(b.deltaPp) - Math.abs(a.deltaPp))) {
+      const strong = Math.abs(m.deltaPp) >= 12
+      console.log(
+        `    match ${String(m.num).padStart(2)} ${pad(m.label, 26)} ${m.sign}${m.deltaPp >= 0 ? '+' : ''}${m.deltaPp.toFixed(0)} pp` +
+          (strong ? '  ⚠ kraftig' : '') +
+          (m.spiked ? '  — och matchen är SPIKAD' : ''),
+      )
+    }
+    console.log('    Stora rörelser betyder ofta ny information (laguppställning,')
+    console.log('    skada). Värt att kolla innan spelstopp — särskilt spikade matcher.')
   }
 
   if (opts.showRows) {

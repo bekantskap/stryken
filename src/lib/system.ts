@@ -141,6 +141,37 @@ export function suggestSystem(
   return { picks, rows, prob13, expectedCorrect, costOre: rows * rowPriceOre }
 }
 
+/**
+ * Trösklar för "ovanligt stor streckrörelse", i procentenheter.
+ *
+ * Uppmätt över 78 teckenrörelser i 6 omgångar (2026-09-01):
+ *   median 3,0 pp · p75 5,0 · p90 12,0 · p95 16,0 · max 21,0
+ *
+ * En rörelse ≥8 pp ligger alltså i toppdecilerna och ≥12 pp i topp 10 %.
+ * Stora rörelser betyder ofta att ny information kommit in (laguppställning,
+ * skada) — värt att titta på innan man spikar emot.
+ */
+export const MOVE_NOTABLE_PP = 8
+export const MOVE_STRONG_PP = 12
+
+export type MoveFlag = { sign: Sign; deltaPp: number; strong: boolean }
+
+/** Största streckrörelsen för en match, om den överstiger tröskeln. */
+export function biggestMove(
+  opening: SignProbs | undefined,
+  current: SignProbs,
+): MoveFlag | null {
+  if (!opening) return null
+  const deltas: { sign: Sign; d: number }[] = [
+    { sign: '1', d: (current.one - opening.one) * 100 },
+    { sign: 'X', d: (current.x - opening.x) * 100 },
+    { sign: '2', d: (current.two - opening.two) * 100 },
+  ]
+  const top = deltas.reduce((a, b) => (Math.abs(b.d) > Math.abs(a.d) ? b : a))
+  if (Math.abs(top.d) < MOVE_NOTABLE_PP) return null
+  return { sign: top.sign, deltaPp: top.d, strong: Math.abs(top.d) >= MOVE_STRONG_PP }
+}
+
 /** Expanderar garderingarna till alla rader, i spelordning. */
 export function expandRows(picks: MatchPick[]): Sign[][] {
   let rows: Sign[][] = [[]]
