@@ -374,3 +374,56 @@ select:focus-visible {
     border-radius: 10px;
   }
 }
+
+/* --- progressmätare (linjerörelse-sidan) --- */
+.progress {
+  height: 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--good));
+  border-radius: 99px;
+  transition: width 0.3s ease;
+}
+
+.progress-label {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 8px;
+}
+
+.progress-label b {
+  color: var(--text);
+}
+
+/* Neutral tagg: "ej signifikant" ska inte se uppmuntrande ut. */
+.tag.neutral {
+  background: var(--panel-2);
+  color: var(--dim);
+  border: 1px solid var(--line);
+}
+
+/* Navigering mellan vyer */
+.nav {
+  display: flex;
+  gap: 14px;
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.nav a {
+  color: var(--muted);
+  text-decoration: none;
+  padding: 4px 0;
+  border-bottom: 1px solid transparent;
+}
+
+.nav a:hover {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}

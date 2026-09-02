@@ -1,6 +1,7 @@
 import { loadDrawView, systemFor, listDraws } from '../src/lib/draw-view.ts'
 import { validSystemSizes, expandRows, MOVE_STRONG_PP } from '../src/lib/system.ts'
 import { BASE_PAYOUT_RATIO } from '../src/lib/payout.ts'
+import Link from 'next/link'
 import { Controls } from './controls.tsx'
 
 export const dynamic = 'force-dynamic'
@@ -109,6 +110,9 @@ export default async function Page({
           </span>
           <span>
             Snapshots <b>{view.snapshotCount}</b>
+          </span>
+          <span className="nav">
+            <Link href="/linjerorelse">Linjerörelse →</Link>
           </span>
         </div>
       </header>

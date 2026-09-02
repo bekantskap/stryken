@@ -97,6 +97,8 @@ Vercels free tier tillåter bara cron 1×/dygn med lös precision, därför ligg
 | `scripts/analyse.ts` | Värdetabellen |
 | `scripts/tips.ts` | Systemförslag för given budget |
 | `src/lib/system.ts` | Garderingsval (uttömmande sökning) |
+| `src/lib/line-movement.ts` | Linjerörelseanalys (delad CLI/UI) |
+| `src/lib/odds-api.ts` | The Odds API — oberoende marknadsodds |
 | `scripts/backtest.ts` | Backtest med beslutsgrind |
 | `scripts/calibrate-alpha.ts` | Kalibrerar medvinnarmodellen |
 | `scripts/dry-run.ts` | Torrkörning mot live-API utan databas |
@@ -130,6 +132,8 @@ Europatipset backtestat (PRD §12): samma slutsats, tydligare — rå ROI −79 
 ### Den sista öppna frågan
 
 Alla tre undersökta spår är stängda med data. Kvar finns ett: **rör sig Svenska Spels linje förutsägbart?**
+
+Finns både i UI:t (**/linjerorelse**, med progressmätare) och som CLI:
 
 ```bash
 npm run line-movement
