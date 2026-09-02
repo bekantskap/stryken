@@ -127,6 +127,16 @@ Byggs inte:
 
 Europatipset backtestat (PRD §12): samma slutsats, tydligare — rå ROI −79 till −85 % vid alla trösklar över 290 omgångar.
 
+### Den sista öppna frågan
+
+Alla tre undersökta spår är stängda med data. Kvar finns ett: **rör sig Svenska Spels linje förutsägbart?**
+
+```bash
+npm run line-movement
+```
+
+Kräver ~300 matcher med både live-odds och facit. Live-odds nollställs när en omgång avgörs, så bara omgångar daemonen capturat live räknas — det växer med ~40 matcher/vecka. Skriptet säger själv till när datan räcker och vägrar dra slutsatser innan dess.
+
 Möjligt senare:
 
 - V75/V85 (ATG-data samlas redan)

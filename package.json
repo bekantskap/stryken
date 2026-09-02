@@ -17,7 +17,8 @@
     "tips": "node --env-file-if-exists=.env node_modules/.bin/tsx scripts/tips.ts",
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "line-movement": "node --env-file-if-exists=.env node_modules/.bin/tsx scripts/line-movement.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
