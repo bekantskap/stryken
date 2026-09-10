@@ -79,7 +79,7 @@ npm run typecheck
 
 ## Drift
 
-`.github/workflows/capture.yml` kör `npm run capture` var 15:e minut. Kräver `DATABASE_URL` som repository secret.
+`.github/workflows/capture.yml` kör `npm run capture` var 15:e minut i en loop inuti 6-timmarsjobb (GitHub stryper korta cron-intervall). Kräver `DATABASE_URL` som repository secret.
 
 Vercels free tier tillåter bara cron 1×/dygn med lös precision, därför ligger capture i GitHub Actions.
 

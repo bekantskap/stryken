@@ -1,26 +1,28 @@
 name: capture
 
-# Fas 0-daemonen. Var 15:e minut — streckprocenten rör sig mest sista dygnet
-# före spelstopp, och de rörelserna går inte att hämta i efterhand.
+# Fas 0-daemonen. Målet är ett snapshot var 15:e minut — streckprocenten rör
+# sig mest sista dygnet före spelstopp, och de rörelserna går inte att hämta
+# i efterhand.
 #
-# Vercels free tier tillåter bara cron 1×/dygn med lös precision, därför ligger
-# capture här. GitHub Actions är gratis för publika repon och räknar 15-min-cron
-# utan problem.
+# GitHub Actions stryper schemalagda cron hårt: en '*/15'-cron gav i praktiken
+# ~8 körningar/dygn med luckor på upp till 12 h (mätt 26 aug–10 sep 2026).
+# Därför kör varje jobb en egen loop i knappt 6 h (jobbets maxtid), och cron
+# triggar varje timme. Concurrency-gruppen köar nästa jobb tills det pågående
+# är klart, så det tar vid direkt. Enstaka strypta triggers spelar då ingen
+# roll — det räcker att en av dem per 6 h går igenom.
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '0 * * * *'
   workflow_dispatch:
 
 concurrency:
-  # Hoppa aldrig över en körning för att den föregående hänger, men kör inte
-  # heller två samtidigt mot samma databas.
   group: capture
   cancel-in-progress: false
 
 jobs:
   capture:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
 
@@ -31,16 +33,16 @@ jobs:
 
       - run: npm ci
 
-      - name: Kör capture
+      # Capture var 15:e minut i ~5 h 45 min, sedan avslutas jobbet snyggt
+      # innan timeouten. fetch-results ligger i loopen: idempotent och billig,
+      # och utan den får live-capturade omgångar aldrig facit.
+      - name: Capture-loop
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: npm run capture
-
-      # Hämtar facit för omgångar som avgjorts. Utan detta får live-capturade
-      # omgångar aldrig något facit, och historikloggen (F5) slutar fungera
-      # framåt — upptäcktes när 4968 saknade facit trots att den avgjorts.
-      # Idempotent och billig: hoppar över omgångar som redan har facit.
-      - name: Hämta facit för avgjorda omgångar
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: npm run fetch-results
+        run: |
+          end=$(( $(date +%s) + 345*60 ))
+          while [ "$(date +%s)" -lt "$end" ]; do
+            npm run capture || echo "::warning::capture misslyckades, försöker igen om 15 min"
+            npm run fetch-results || echo "::warning::fetch-results misslyckades"
+            sleep 900
+          done

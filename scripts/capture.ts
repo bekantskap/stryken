@@ -6,7 +6,7 @@
  * och kan aldrig återskapas. Varje omgång utan capture är permanent förlorad
  * data.
  *
- * Körs av GitHub Actions var 15:e minut. Ingen parsing utöver det som behövs
+ * Körs av GitHub Actions var 15:e minut (loop i capture.yml). Ingen parsing utöver det som behövs
  * för att kunna fråga senare — rå JSON sparas alltid i snapshot.raw.
  *
  *   npm run capture            # fotboll + trav
