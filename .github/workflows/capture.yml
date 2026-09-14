@@ -10,12 +10,11 @@ name: capture
 # triggar varje timme. Concurrency-gruppen köar nästa jobb tills det pågående
 # är klart, så det tar vid direkt. Enstaka strypta triggers spelar då ingen
 # roll — det räcker att en av dem per 6 h går igenom.
-# Schemat är avstängt 2026-09-14: privat repo har 2 000 Actions-minuter/månad,
-# loopen förbrukar ~43 000. Slå på igen (ta bort kommentaren) när repot är
-# publikt — då är minuterna obegränsade.
+# Kräver publikt repo: loopen förbrukar ~43 000 Actions-minuter/månad, privata
+# repon har 2 000 gratis. Publika har obegränsat. (Slog i taket 2026-09-14.)
 on:
-  # schedule:
-  #   - cron: '0 * * * *'
+  schedule:
+    - cron: '0 * * * *'
   workflow_dispatch:
 
 concurrency:
