@@ -1,4 +1,4 @@
-import { PRODUCTS, fetchCurrentDraw } from '../../../src/lib/svenskaspel.ts'
+import { CAPTURE_PRODUCTS, fetchCurrentDraw } from '../../../src/lib/svenskaspel.ts'
 import { ingestDraw } from '../../../src/lib/ingest.ts'
 import { getDb } from '../../../src/db/client.ts'
 
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
   const results: Record<string, unknown> = {}
   const db = getDb()
 
-  for (const product of PRODUCTS) {
+  for (const product of CAPTURE_PRODUCTS) {
     try {
       const raw = await fetchCurrentDraw(product)
       if (!raw) {

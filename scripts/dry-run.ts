@@ -7,8 +7,7 @@
  *   npx tsx scripts/dry-run.ts
  */
 
-import { PRODUCTS, fetchCurrentDraw } from '../src/lib/svenskaspel.ts'
-import { fetchCalendarGames, fetchGame } from '../src/lib/atg.ts'
+import { CAPTURE_PRODUCTS, fetchCurrentDraw } from '../src/lib/svenskaspel.ts'
 import {
   parseDecimal,
   parseAmountToOre,
@@ -20,7 +19,7 @@ const pad = (s: string, n: number) => s.padEnd(n).slice(0, n)
 const fmtPct = (v: number) => (v * 100).toFixed(1).padStart(5)
 
 async function football() {
-  for (const product of PRODUCTS) {
+  for (const product of CAPTURE_PRODUCTS) {
     console.log(`\n═══ ${product.toUpperCase()} ═══`)
     const raw = await fetchCurrentDraw(product)
     if (!raw) {
@@ -91,56 +90,8 @@ async function football() {
   }
 }
 
-async function trav() {
-  console.log('\n═══ ATG ═══')
-  const today = new Date().toISOString().slice(0, 10)
-  const games = await fetchCalendarGames(today)
-  console.log(`  ${today}: ${games.length} spel av följd typ`)
-  for (const g of games.slice(0, 2)) {
-    const raw = await fetchGame(g.gameId)
-    if (!raw) continue
-    const races = raw['races']
-    if (!Array.isArray(races) || !races[0]) continue
-    const r0 = races[0] as Record<string, unknown>
-    const starts = r0['starts']
-    console.log(`\n  ${g.poolType} ${g.gameId} — lopp 1, ${Array.isArray(starts) ? starts.length : 0} startande`)
-    if (!Array.isArray(starts)) continue
-    console.log(`    ${pad('nr', 4)}${pad('spår', 5)}${pad('häst', 24)}${pad('vinnarodds', 12)}${pad('streck%', 9)}barfota`)
-    for (const st of starts.slice(0, 6)) {
-      const s = st as Record<string, unknown>
-      const horse = (s['horse'] ?? {}) as Record<string, unknown>
-      const pools = (s['pools'] ?? {}) as Record<string, unknown>
-      const vin = (pools['vinnare'] ?? {}) as Record<string, unknown>
-      const pool = (pools[g.poolType] ?? {}) as Record<string, unknown>
-      const shoes = (horse['shoes'] ?? {}) as Record<string, unknown>
-      const front = (shoes['front'] ?? {}) as Record<string, unknown>
-      const back = (shoes['back'] ?? {}) as Record<string, unknown>
-
-      // Nativa skalor: odds i hundradelar, betDistribution i hundradelar procent.
-      const oddsRaw = parseDecimal(vin['odds'])
-      const distRaw = parseDecimal(pool['betDistribution'])
-      const bare =
-        front['hasShoe'] === false && back['hasShoe'] === false
-          ? 'barfota fram+bak'
-          : front['hasShoe'] === false
-            ? 'barfota fram'
-            : back['hasShoe'] === false
-              ? 'barfota bak'
-              : ''
-
-      console.log(
-        `    ${pad(String(s['number']), 4)}${pad(String(s['postPosition']), 5)}` +
-          `${pad(String(horse['name'] ?? ''), 24)}` +
-          `${pad(oddsRaw === null ? '?' : (oddsRaw / 100).toFixed(2), 12)}` +
-          `${pad(distRaw === null ? '?' : (distRaw / 100).toFixed(2), 9)}${bare}`,
-      )
-    }
-  }
-}
-
 async function main() {
   await football()
-  await trav()
   console.log('\nTorrkörning klar — inget skrevs till databas.')
 }
 

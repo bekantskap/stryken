@@ -9,20 +9,19 @@
  * Körs av GitHub Actions var 15:e minut (loop i capture.yml). Ingen parsing utöver det som behövs
  * för att kunna fråga senare — rå JSON sparas alltid i snapshot.raw.
  *
- *   npm run capture            # fotboll + trav
- *   npm run capture -- --football-only
+ * Endast Stryktipset capturas (CAPTURE_PRODUCTS). Trav-capturen är borttagen:
+ * rå ATG-payload fyllde Neons 512 MB-tak (467 MB i race_snapshot) och stoppade
+ * all skrivning inklusive fotbollen 2026-09-16. V75-spåret var aldrig påbörjat.
+ * Tabellerna race_* finns kvar i schemat om det återupptas.
+ *
+ *   npm run capture
  */
 
-import { getDb } from '../src/db/client.ts'
-import { PRODUCTS, fetchCurrentDraw } from '../src/lib/svenskaspel.ts'
-import { fetchCalendarGames, fetchGame } from '../src/lib/atg.ts'
-import { ingestDraw } from '../src/lib/ingest.ts'
-import { raceGame, raceSnapshot } from '../src/db/schema.ts'
-import { eq } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 
-const args = new Set(process.argv.slice(2))
-const footballOnly = args.has('--football-only')
-const travOnly = args.has('--trav-only')
+import { getDb } from '../src/db/client.ts'
+import { CAPTURE_PRODUCTS, fetchCurrentDraw } from '../src/lib/svenskaspel.ts'
+import { ingestDraw } from '../src/lib/ingest.ts'
 
 function log(msg: string) {
   console.log(`[${new Date().toISOString()}] ${msg}`)
@@ -47,7 +46,7 @@ function noteFundFields(product: string, raw: Record<string, unknown>) {
 async function captureFootball(): Promise<number> {
   const db = getDb()
   let ok = 0
-  for (const product of PRODUCTS) {
+  for (const product of CAPTURE_PRODUCTS) {
     try {
       const raw = await fetchCurrentDraw(product)
       if (!raw) {
@@ -74,83 +73,44 @@ async function captureFootball(): Promise<number> {
   return ok
 }
 
-async function captureTrav(): Promise<number> {
-  const db = getDb()
-  let ok = 0
-  // Idag och imorgon: spel öppnar dagen innan.
-  const dates = [0, 1].map((d) => {
-    const dt = new Date()
-    dt.setUTCDate(dt.getUTCDate() + d)
-    return dt.toISOString().slice(0, 10)
-  })
+/**
+ * Neon free tier tar slut vid 512 MB, och då failar varje insert tyst —
+ * jobbet loggar "0 snapshots skrivna" och exitar 0. Det pågick 2026-09-16
+ * till 09-23 innan någon märkte det. Exit 1 vid fullt tak: hellre ett rött
+ * jobb än en vecka förlorad live-data.
+ */
+const SIZE_LIMIT_MB = 512
+const WARN_AT_MB = 450
 
-  for (const date of dates) {
-    let games
-    try {
-      games = await fetchCalendarGames(date)
-    } catch (err) {
-      log(`ATG ${date}: FEL — ${err instanceof Error ? err.message : String(err)}`)
-      continue
+async function checkDiskBudget(): Promise<boolean> {
+  try {
+    const r = await getDb().execute(
+      sql`select pg_database_size(current_database()) / 1024 / 1024 as mb`,
+    )
+    const mb = Number((r as unknown as { rows?: { mb: unknown }[] }).rows?.[0]?.mb ?? 0)
+    if (!mb) return true
+    if (mb >= WARN_AT_MB) {
+      log(`!! databasen är ${mb} MB av ${SIZE_LIMIT_MB} MB — inserts failar snart`)
+      return false
     }
-    if (games.length === 0) {
-      log(`ATG ${date}: inga spel av följd typ`)
-      continue
-    }
-
-    for (const g of games) {
-      try {
-        const raw = await fetchGame(g.gameId)
-        if (!raw) continue
-
-        const existing = await db
-          .select({ id: raceGame.id })
-          .from(raceGame)
-          .where(eq(raceGame.gameId, g.gameId))
-          .limit(1)
-
-        let gameRowId: number
-        if (existing[0]) {
-          gameRowId = existing[0].id
-        } else {
-          const ins = await db
-            .insert(raceGame)
-            .values({
-              gameId: g.gameId,
-              poolType: g.poolType,
-              raceDate: date,
-              startTime:
-                g.startTime && !Number.isNaN(new Date(g.startTime).getTime())
-                  ? new Date(g.startTime)
-                  : null,
-            })
-            .returning({ id: raceGame.id })
-          if (!ins[0]) continue
-          gameRowId = ins[0].id
-        }
-
-        await db.insert(raceSnapshot).values({
-          gameId: gameRowId,
-          capturedAt: new Date(),
-          raw: raw as Record<string, unknown>,
-        })
-        log(`ATG ${g.poolType} ${g.gameId}: snapshot sparad`)
-        ok++
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        if (msg.includes('duplicate') || msg.includes('unique')) continue
-        log(`ATG ${g.gameId}: FEL — ${msg}`)
-      }
-    }
+    log(`databas ${mb} MB / ${SIZE_LIMIT_MB} MB`)
+    return true
+  } catch (err) {
+    // Vakten får inte vara det som stoppar en capture.
+    log(`diskkoll misslyckades (fortsätter): ${err instanceof Error ? err.message : String(err)}`)
+    return true
   }
-  return ok
 }
 
 async function main() {
   log('capture startar')
-  let total = 0
-  if (!travOnly) total += await captureFootball()
-  if (!footballOnly) total += await captureTrav()
+  const roomy = await checkDiskBudget()
+  const total = await captureFootball()
   log(`capture klar — ${total} snapshots skrivna`)
+  if (!roomy) {
+    log('AVBRYTER RÖTT: diskutrymmet är slut, capture skriver inget förrän det rensas')
+    process.exit(1)
+  }
   // Exit 0 även vid 0 snapshots: utanför omgångsfönstret finns inget att fånga,
   // och ett rött cron-jobb varje natt gör att man slutar titta på loggen.
 }
