@@ -44,7 +44,17 @@ jobs:
         run: |
           end=$(( $(date +%s) + 345*60 ))
           while [ "$(date +%s)" -lt "$end" ]; do
-            npm run capture || echo "::warning::capture misslyckades, försöker igen om 15 min"
+            # Exit 2 = diskbudgeten slut. Avbryt jobbet rött istället för att
+            # snurra vidare i 6 h och skriva noll — tystnaden var det som lät
+            # 2026-09-16 pågå i en vecka.
+            npm run capture
+            rc=$?
+            if [ "$rc" -eq 2 ]; then
+              echo "::error::diskbudgeten slut — capture skriver inget förrän databasen rensas"
+              exit 1
+            elif [ "$rc" -ne 0 ]; then
+              echo "::warning::capture misslyckades (rc=$rc), försöker igen om 15 min"
+            fi
             npm run fetch-results || echo "::warning::fetch-results misslyckades"
             sleep 900
           done

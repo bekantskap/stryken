@@ -108,8 +108,9 @@ async function main() {
   const total = await captureFootball()
   log(`capture klar — ${total} snapshots skrivna`)
   if (!roomy) {
+    // Exit 2 är kontraktet mot capture.yml: avbryt hela loopjobbet rött.
     log('AVBRYTER RÖTT: diskutrymmet är slut, capture skriver inget förrän det rensas')
-    process.exit(1)
+    process.exit(2)
   }
   // Exit 0 även vid 0 snapshots: utanför omgångsfönstret finns inget att fånga,
   // och ett rött cron-jobb varje natt gör att man slutar titta på loggen.
