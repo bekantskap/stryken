@@ -15,6 +15,13 @@
 export const PRODUCTS = ['stryktipset', 'europatipset'] as const
 export type Product = (typeof PRODUCTS)[number]
 
+/**
+ * Produkter som capturas löpande. Smalare än PRODUCTS: Europatipsets
+ * live-snapshots ligger kvar och får fortfarande facit via fetch-results
+ * (som går på PRODUCTS), men inga nya samlas in.
+ */
+export const CAPTURE_PRODUCTS = ['stryktipset'] as const satisfies readonly Product[]
+
 const BASE = 'https://api.www.svenskaspel.se/draw/1'
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36'
 

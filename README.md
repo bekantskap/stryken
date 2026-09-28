@@ -1,6 +1,6 @@
 # Edge
 
-Analysverktyg för Stryktipset och Europatipset (V75/V85-data samlas). Se [prd-edge.md](prd-edge.md) för produktbeskrivning och matematik.
+Analysverktyg för Stryktipset och Europatipset. Se [prd-edge.md](prd-edge.md) för produktbeskrivning och matematik.
 
 **Status:** användbar som analysverktyg för Stryktipset.
 
@@ -81,6 +81,10 @@ npm run typecheck
 
 `.github/workflows/capture.yml` kör `npm run capture` var 15:e minut i en loop inuti 6-timmarsjobb (GitHub stryper korta cron-intervall). Kräver `DATABASE_URL` som repository secret.
 
+**Endast Stryktipset capturas** (`CAPTURE_PRODUCTS` i `src/lib/svenskaspel.ts`). Europatipsets befintliga live-snapshots ligger kvar och får fortfarande facit, men nya samlas inte in. Trav-capturen är borttagen.
+
+**Diskbudget.** Neon free tier tar slut vid 512 MB och då failar varje insert *tyst* — capture loggar `0 snapshots skrivna` och exitar 0. Det pågick 16–23 sep 2026 innan det upptäcktes; orsaken var rå ATG-payload i `race_snapshot` (467 MB av 489 MB). Capture kollar nu storleken före varje körning och exitar 1 över 450 MB.
+
 Vercels free tier tillåter bara cron 1×/dygn med lös precision, därför ligger capture i GitHub Actions.
 
 ## Kod
@@ -89,7 +93,7 @@ Vercels free tier tillåter bara cron 1×/dygn med lös precision, därför ligg
 |---|---|
 | `src/lib/parse.ts` | Decimalkomma, öre-heltal, normalisering av streck |
 | `src/lib/svenskaspel.ts` | Klient mot Svenska Spels API |
-| `src/lib/atg.ts` | Klient mot ATG:s racinginfo-API |
+| `src/lib/atg.ts` | Klient mot ATG:s racinginfo-API (oanvänd, V75-spåret pausat) |
 | `src/lib/ingest.ts` | Skriver omgång + snapshot (delad live/arkiv) |
 | `src/db/schema.ts` | Drizzle-schema |
 | `scripts/capture.ts` | Snapshot-daemonen (var 15:e min) |
@@ -115,7 +119,7 @@ Tre saker i datan ser rimliga ut i fel skala och ger inga felmeddelanden:
 
 Klart:
 
-- Snapshot-daemon i drift (GitHub Actions, var 15:e min)
+- Snapshot-daemon i drift (GitHub Actions, var 15:e min, Stryktipset)
 - Arkivimport: 801 omgångar med odds, streck, facit och verkliga utdelningar
 - Medvinnarmodell kalibrerad: α = 1,068 (Stryktipset), 1,045 (Europatipset)
 - Backtest med beslutsgrind → **ingen edge**
@@ -143,4 +147,4 @@ Kräver ~300 matcher med både live-odds och facit. Live-odds nollställs när e
 
 Möjligt senare:
 
-- V75/V85 (ATG-data samlas redan)
+- V75/V85 — ATG-insamlingen avstängd 2026-09-23 (fyllde databasen, spåret var aldrig påbörjat). `race_*`-tabellerna finns kvar i schemat, men är tömda.
