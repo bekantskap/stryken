@@ -4,13 +4,15 @@ import { eq, and, desc, asc } from 'drizzle-orm'
 import { oddsToProbabilities } from './parse.ts'
 import {
   suggestSystem,
+  payout13IfHitOre,
+  type Mode,
   biggestMove,
   isDegenerateDistribution,
   type MoveFlag,
   type Sign,
   type SystemSuggestion,
 } from './system.ts'
-import type { SignProbs } from './payout.ts'
+import { ALPHA, type SignProbs } from './payout.ts'
 
 /**
  * Delat datalager för omgångsvyn — används av både CLI (scripts/) och
@@ -191,18 +193,31 @@ export async function loadDrawView(
   }
 }
 
+function matchesOf(view: DrawView) {
+  return view.matches.map((m) => ({
+    eventNumber: m.eventNumber,
+    label: `${m.home}-${m.away}`,
+    model: m.model,
+    crowd: m.crowd,
+  }))
+}
+
 /** Bygger ett systemförslag ur en laddad omgångsvy. */
-export function systemFor(view: DrawView, targetRows: number): SystemSuggestion {
-  return suggestSystem(
-    view.matches.map((m) => ({
-      eventNumber: m.eventNumber,
-      label: `${m.home}-${m.away}`,
-      model: m.model,
-      crowd: m.crowd,
-    })),
-    targetRows,
+export function systemFor(view: DrawView, targetRows: number, mode: Mode = 'traff'): SystemSuggestion {
+  return suggestSystem(matchesOf(view), targetRows, view.rowPriceOre, mode, ALPHA[view.product] ?? 1)
+}
+
+/** Förväntad 13-utdelning i kr om systemet träffar. null utan omsättning. */
+export function payoutIfHitKr(view: DrawView, sys: SystemSuggestion): number | null {
+  if (!view.netSaleKr) return null
+  const ore = payout13IfHitOre(
+    sys,
+    matchesOf(view),
+    view.netSaleKr * 100,
     view.rowPriceOre,
+    ALPHA[view.product] ?? 1,
   )
+  return ore / 100
 }
 
 /** Lista över tillgängliga omgångar, nyast först. */

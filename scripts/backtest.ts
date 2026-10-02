@@ -32,10 +32,7 @@ import {
   sampleRow,
   type DrawData,
 } from '../src/lib/backtest.ts'
-import { TIERS, type Row, type SignProbs } from '../src/lib/payout.ts'
-
-/** Kalibrerat i fas 1c. Stryktipset 1,068 / Europatipset 1,045. */
-const ALPHA: Record<string, number> = { stryktipset: 1.068, europatipset: 1.045 }
+import { ALPHA, TIERS, type Row, type SignProbs } from '../src/lib/payout.ts'
 
 /**
  * Förregistrerat tröskelrutnät. Bestämt INNAN testdata rörs (PRD §7 fas 2).

@@ -47,9 +47,12 @@ npm run tips                         # visa giltiga systemstorlekar
 npm run tips -- --rader 48           # ← systemet att lämna in
 npm run tips -- --rader 96 --visa-rader     # med full radlista
 npm run tips -- --rader 96 --draw 4968      # avgjord omgång, med facit
+npm run tips -- --rader 48 --lage utdelning # mindre streckat, större utdelning vid träff
 ```
 
 Ger garderingar per match (spik / halvgardering / helgardering) — det man faktiskt lämnar in. Väljer den kombination som maximerar sannolikheten att systemet innehåller rätt rad, inom din budget.
+
+`--lage utdelning` (Mål i UI:t) tar högst 10 % lägre träffchans i utbyte mot mindre streckade tecken, så att potten delas med färre om du träffar. Typiskt ×1,0–1,6 i 13-utdelning. Gör förväntad avkastning mindre negativ, inte positiv.
 
 **Se värdetabellen:**
 
