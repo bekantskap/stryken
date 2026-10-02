@@ -1,5 +1,5 @@
-import { loadDrawView, systemFor, listDraws } from '../src/lib/draw-view.ts'
-import { validSystemSizes, expandRows, MOVE_STRONG_PP } from '../src/lib/system.ts'
+import { loadDrawView, systemFor, payoutIfHitKr, listDraws } from '../src/lib/draw-view.ts'
+import { validSystemSizes, expandRows, MOVE_STRONG_PP, type Mode } from '../src/lib/system.ts'
 import { BASE_PAYOUT_RATIO } from '../src/lib/payout.ts'
 import Link from 'next/link'
 import { Controls } from './controls.tsx'
@@ -26,7 +26,7 @@ function vClass(v: number) {
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ draw?: string; rader?: string; produkt?: string }>
+  searchParams: Promise<{ draw?: string; rader?: string; produkt?: string; lage?: string }>
 }) {
   const sp = await searchParams
   const product = PRODUCTS.some((p) => p.value === sp.produkt)
@@ -35,6 +35,7 @@ export default async function Page({
   const drawNumber = sp.draw ? Number(sp.draw) : undefined
   const wantRows = sp.rader ? Number(sp.rader) : 48
   const targetRows = SIZES.includes(wantRows) ? wantRows : 48
+  const mode: Mode = sp.lage === 'utdelning' ? 'utdelning' : 'traff'
 
   const [view, all] = await Promise.all([
     loadDrawView(product, drawNumber),
@@ -54,7 +55,11 @@ export default async function Page({
     )
   }
 
-  const sys = systemFor(view, targetRows)
+  const sys = systemFor(view, targetRows, mode)
+  // Jämförelsen mot träffläget är hela poängen: visa vad utdelningen kostar.
+  const base = mode === 'utdelning' ? systemFor(view, targetRows) : sys
+  const payout = payoutIfHitKr(view, sys)
+  const basePayout = payoutIfHitKr(view, base)
   const pickByNum = new Map(sys.picks.map((p) => [p.eventNumber, p]))
   const moved = view.matches
     .filter((m) => m.move)
@@ -125,6 +130,7 @@ export default async function Page({
           currentProduct={product}
           currentDraw={view.drawNumber}
           currentRows={targetRows}
+          currentMode={mode}
         />
 
         <div className="stats">
@@ -139,8 +145,22 @@ export default async function Page({
           <div className="stat">
             <div className="k">Träffchans 13 rätt</div>
             <div className="v">{fmtPct(sys.prob13, 2)}</div>
-            <div className="n">1 på {Math.round(1 / sys.prob13).toLocaleString('sv-SE')} omgångar</div>
+            <div className="n">
+              1 på {Math.round(1 / sys.prob13).toLocaleString('sv-SE')} omgångar
+              {sys !== base && ` (${fmtPct(sys.prob13 / base.prob13 - 1)} mot max)`}
+            </div>
           </div>
+          {payout !== null && (
+            <div className="stat">
+              <div className="k">Utdelning vid 13 rätt</div>
+              <div className="v">≈ {Math.round(payout).toLocaleString('sv-SE')} kr</div>
+              <div className="n">
+                {sys !== base && basePayout
+                  ? `×${(payout / basePayout).toFixed(1)} mot max träffchans`
+                  : 'uppskattad, utan extrapott'}
+              </div>
+            </div>
+          )}
           <div className="stat">
             <div className="k">Förväntat antal rätt</div>
             <div className="v">{sys.expectedCorrect.toFixed(1)}</div>
@@ -300,9 +320,10 @@ export default async function Page({
       </div>
 
       <div className="honesty">
-        <b>Så här är systemet valt:</b> garderingarna placeras så att sannolikheten att systemet
-        innehåller den rätta raden maximeras, enligt marknadsodds. Alltså störst träffchans för
-        budgeten.
+        <b>Så här är systemet valt:</b>{' '}
+        {mode === 'traff'
+          ? 'garderingarna placeras så att sannolikheten att systemet innehåller den rätta raden maximeras, enligt marknadsodds. Alltså störst träffchans för budgeten.'
+          : 'högst 10 % lägre träffchans än max, i utbyte mot mindre streckade tecken så att potten delas med färre om du träffar. Det gör förväntad avkastning mindre negativ, inte positiv.'}
         <br />
         <br />
         <b>Men:</b> utbetalningen är {fmtPct(BASE_PAYOUT_RATIO, 1)} av omsättningen (avdrag{' '}

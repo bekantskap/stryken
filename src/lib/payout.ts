@@ -34,6 +34,9 @@ export const TIER_SHARE: Record<Tier, number> = {
   10: 0.161,
 }
 
+/** Popularitetsexponent, kalibrerad i fas 1c (scripts/calibrate-alpha.ts). */
+export const ALPHA: Record<string, number> = { stryktipset: 1.068, europatipset: 1.045 }
+
 export const BASE_PAYOUT_RATIO = TIER_SHARE[13] + TIER_SHARE[12] + TIER_SHARE[11] + TIER_SHARE[10]
 
 /**

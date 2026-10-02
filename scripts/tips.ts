@@ -7,6 +7,7 @@
  *   npm run tips -- --rader 48
  *   npm run tips -- --rader 96 --visa-rader     # skriv ut alla rader
  *   npm run tips -- --rader 48 --draw 4968      # specifik omgång
+ *   npm run tips -- --rader 48 --lage utdelning # mindre streckat, större utdelning vid träff
  *
  * ÄRLIGHETSNOT: backtesten (PRD §12) visade INGEN edge i radurval — trimmad
  * ROI −94 till −98 %. Detta verktyg löser problemet "givet att jag ska lämna
@@ -18,9 +19,17 @@ import { getDb } from '../src/db/client.ts'
 import { draw, event, snapshot, eventSnapshot, result } from '../src/db/schema.ts'
 import { eq, and, desc, asc } from 'drizzle-orm'
 import { oddsToProbabilities } from '../src/lib/parse.ts'
-import { suggestSystem, validSystemSizes, expandRows, biggestMove, type Sign } from '../src/lib/system.ts'
+import {
+  suggestSystem,
+  validSystemSizes,
+  expandRows,
+  biggestMove,
+  payout13IfHitOre,
+  type Mode,
+  type Sign,
+} from '../src/lib/system.ts'
 import type { SignProbs } from '../src/lib/payout.ts'
-import { BASE_PAYOUT_RATIO } from '../src/lib/payout.ts'
+import { ALPHA, BASE_PAYOUT_RATIO } from '../src/lib/payout.ts'
 
 function parseArgs() {
   const a = process.argv.slice(2)
@@ -33,6 +42,7 @@ function parseArgs() {
     drawNumber: get('--draw') ? Number(get('--draw')) : undefined,
     rows: get('--rader') ? Number(get('--rader')) : undefined,
     showRows: a.includes('--visa-rader'),
+    mode: (get('--lage') === 'utdelning' ? 'utdelning' : 'traff') as Mode,
   }
 }
 
@@ -76,6 +86,7 @@ async function main() {
       drawNumber: draw.drawNumber,
       closeAt: draw.closeAt,
       rowPriceOre: draw.rowPriceOre,
+      netSaleOre: draw.netSaleOre,
     })
     .from(draw)
     .where(where)
@@ -165,7 +176,12 @@ async function main() {
     return
   }
 
-  const sys = suggestSystem(matches, opts.rows, target.rowPriceOre ?? 100)
+  const rowPrice = target.rowPriceOre ?? 100
+  const alpha = ALPHA[opts.product] ?? 1
+  const sys = suggestSystem(matches, opts.rows, rowPrice, opts.mode, alpha)
+  const base = opts.mode === 'utdelning' ? suggestSystem(matches, opts.rows, rowPrice) : sys
+  const netSale = target.netSaleOre ? Number(target.netSaleOre) : 0
+  const payoutKr = (s: typeof sys) => (netSale > 0 ? payout13IfHitOre(s, matches, netSale, rowPrice, alpha) / 100 : null)
 
   // Facit om omgången är avgjord.
   const facit = await db
@@ -231,6 +247,17 @@ async function main() {
   console.log(`  ${spikar} spikar, ${halva} halvgarderingar, ${hela} helgarderingar`)
   console.log(`  Sannolikhet att systemet innehåller rätt rad: ${(sys.prob13 * 100).toFixed(2)} %`)
   console.log(`  Förväntat antal rätt (bästa rad): ${sys.expectedCorrect.toFixed(1)} av 13`)
+  const pay = payoutKr(sys)
+  if (pay !== null) {
+    console.log(`  Utdelning vid 13 rätt: ≈ ${Math.round(pay).toLocaleString('sv-SE')} kr (uppskattad, utan extrapott)`)
+  }
+  if (sys !== base) {
+    const basePay = payoutKr(base)
+    console.log(
+      `  Mot max träffchans: träffchans ${((sys.prob13 / base.prob13 - 1) * 100).toFixed(0)} %` +
+        (pay !== null && basePay ? `, utdelning ×${(pay / basePay).toFixed(1)}` : ''),
+    )
+  }
 
   if (facitByNum.size === 13) {
     const correct = sys.picks.filter((p) => {
@@ -272,9 +299,16 @@ async function main() {
   // ---- ärlighetsnot ----
   console.log()
   console.log('  ' + '─'.repeat(72))
-  console.log('  SÅ HÄR ÄR DETTA VALT: garderingar placerade där de ger mest')
-  console.log('  sannolikhet per tillkommen rad, enligt marknadsodds. Alltså')
-  console.log('  maximerad TRÄFFCHANS för din budget.')
+  if (opts.mode === 'traff') {
+    console.log('  SÅ HÄR ÄR DETTA VALT: garderingar placerade där de ger mest')
+    console.log('  sannolikhet per tillkommen rad, enligt marknadsodds. Alltså')
+    console.log('  maximerad TRÄFFCHANS för din budget. (--lage utdelning för')
+    console.log('  mindre streckat system med större utdelning vid träff.)')
+  } else {
+    console.log('  SÅ HÄR ÄR DETTA VALT: högst 10 % lägre träffchans än max, i utbyte')
+    console.log('  mot mindre streckade tecken så att potten delas med färre om du')
+    console.log('  träffar. Förväntad avkastning blir mindre negativ, inte positiv.')
+  }
   console.log()
   console.log(`  MEN: utbetalningen är ${(BASE_PAYOUT_RATIO * 100).toFixed(1)} % av omsättningen (avdrag`)
   console.log(`  ${((1 - BASE_PAYOUT_RATIO) * 100).toFixed(1)} %), och backtesten över 147 omgångar visade INGEN edge i`)

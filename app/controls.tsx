@@ -14,6 +14,7 @@ export function Controls({
   currentProduct,
   currentDraw,
   currentRows,
+  currentMode,
 }: {
   products: { value: string; label: string }[]
   draws: { drawNumber: number; label: string }[]
@@ -21,6 +22,7 @@ export function Controls({
   currentProduct: string
   currentDraw: number
   currentRows: number
+  currentMode: string
 }) {
   const router = useRouter()
   const params = useSearchParams()
@@ -80,6 +82,14 @@ export function Controls({
               {n} rader — {n} kr
             </option>
           ))}
+        </select>
+      </label>
+
+      <label className="field">
+        Mål
+        <select value={currentMode} onChange={(e) => go('lage', e.target.value)} disabled={pending}>
+          <option value="traff">Max träffchans</option>
+          <option value="utdelning">Max utdelning vid träff</option>
         </select>
       </label>
     </div>

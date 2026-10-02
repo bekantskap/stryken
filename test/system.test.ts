@@ -6,6 +6,8 @@ import {
   expandRows,
   isDegenerateDistribution,
   biggestMove,
+  payout13IfHitOre,
+  PAYOUT_MODE_HIT_FLOOR,
 } from '../src/lib/system.ts'
 import type { SignProbs } from '../src/lib/payout.ts'
 
@@ -141,4 +143,17 @@ test('biggestMove ignorerar rörelse mätt mot skräpdata', () => {
   assert.ok(mv)
   assert.equal(mv.sign, '1')
   assert.ok(mv.deltaPp > 14)
+})
+
+test('utdelningsläget byter till understreckat tecken inom träffgolvet', () => {
+  // Match 1: 1 och X nästan lika troliga, men folket har överstreckat 1 kraftigt.
+  const m = uniform([0.5, 0.3, 0.2])
+  m[0] = { ...m[0]!, model: { one: 0.4, x: 0.38, two: 0.22 }, crowd: { one: 0.8, x: 0.1, two: 0.1 } }
+  const base = suggestSystem(m, 1, 100)
+  const pay = suggestSystem(m, 1, 100, 'utdelning', 1)
+  assert.deepEqual(base.picks[0]!.signs, ['1'])
+  assert.deepEqual(pay.picks[0]!.signs, ['X'])
+  assert.ok(pay.prob13 >= base.prob13 * PAYOUT_MODE_HIT_FLOOR)
+  const n = 20_000_000 * 100
+  assert.ok(payout13IfHitOre(pay, m, n, 100, 1) > payout13IfHitOre(base, m, n, 100, 1))
 })
