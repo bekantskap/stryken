@@ -4,6 +4,7 @@ import { eq, and, desc, asc } from 'drizzle-orm'
 import { oddsToProbabilities } from './parse.ts'
 import {
   suggestSystem,
+  systemFromSigns,
   payout13IfHitOre,
   type Mode,
   biggestMove,
@@ -205,6 +206,11 @@ function matchesOf(view: DrawView) {
 /** Bygger ett systemförslag ur en laddad omgångsvy. */
 export function systemFor(view: DrawView, targetRows: number, mode: Mode = 'traff'): SystemSuggestion {
   return suggestSystem(matchesOf(view), targetRows, view.rowPriceOre, mode, ALPHA[view.product] ?? 1)
+}
+
+/** System ur egna tecken per match, i omgångens matchordning. */
+export function customSystem(view: DrawView, signs: Sign[][]): SystemSuggestion {
+  return systemFromSigns(matchesOf(view), signs, view.rowPriceOre)
 }
 
 /** Förväntad 13-utdelning i kr om systemet träffar. null utan omsättning. */

@@ -82,6 +82,8 @@ const SUBSETS: Sign[][][] = [
   [['1', 'X', '2']],
 ]
 
+type Opt = { signs: Sign[]; p: number; v: number }
+
 type Match = { eventNumber: number; label: string; model: SignProbs; crowd: SignProbs }
 
 /** Andel av folkets α-viktade rader som har tecknet. */
@@ -133,8 +135,8 @@ function bestCoverage(score: number[][], targetRows: number): Coverage[] {
  *
  * Båda målen faktoriserar per match: P(13) = Π p_i och utdelningsproxyn
  * Π v_i, där v_i = Σ p(tecken)/folkandel(tecken) (utdelningen ∝ 1/antal
- * vinnare). Utdelningsläget söker log P + t·log(V/P) för ett rutnät av t och
- * behåller bästa V som klarar träffgolvet. t = 0 är exakt träffläget.
+ * vinnare). Utdelningsläget utgår från max-träff-systemet och byter
+ * garderingar så länge V växer och träffgolvet håller.
  */
 export function suggestSystem(
   matches: Match[],
@@ -153,38 +155,79 @@ export function suggestSystem(
     ),
   )
 
-  const solve = (t: number) => {
-    const chosen = opts.map((levels) =>
-      levels.map((level) =>
-        level.reduce((a, b) =>
-          Math.log(b.p) + t * Math.log(b.v / b.p) > Math.log(a.p) + t * Math.log(a.v / a.p) ? b : a,
-        ),
-      ),
-    )
-    const cov = bestCoverage(
-      chosen.map((levels) => levels.map((o) => Math.log(o.p) + t * Math.log(o.v / o.p))),
-      targetRows,
-    )
-    const picked = chosen.map((levels, i) => levels[cov[i]! - 1]!)
-    return {
-      picked,
-      p: picked.reduce((a, o) => a * o.p, 1),
-      v: picked.reduce((a, o) => a * o.v, 1),
-    }
-  }
+  // Max träffchans: per garderingsnivå de mest sannolika tecknen, sedan
+  // uttömmande sökning över nivåerna.
+  const top = opts.map((levels) => levels.map((level) => level.reduce((a, b) => (b.p > a.p ? b : a))))
+  const cov = bestCoverage(
+    top.map((levels) => levels.map((o) => Math.log(o.p))),
+    targetRows,
+  )
+  const picked = top.map((levels, i) => levels[cov[i]! - 1]!)
 
-  let best = solve(0)
   if (mode === 'utdelning') {
-    const floor = best.p * PAYOUT_MODE_HIT_FLOOR
-    for (const t of [0.25, 0.5, 0.75, 1, 1.5, 2, 3]) {
-      const cand = solve(t)
-      if (cand.p >= floor && cand.v > best.v) best = cand
+    // Lokal sökning från max-träff-systemet: pröva alla byten i 1–2 matcher,
+    // ta det som höjer utdelningsproxyn mest inom budget och träffgolv,
+    // upprepa tills inget byte hjälper. Ett rutnät över avvägningen
+    // log P + t·log V missade byten nära golvet (4974: ×2,1 i utdelning vid
+    // −8 % träffchans, rutnätet gav ×1,0).
+    const all = opts.map((levels) => levels.flat())
+    const floor = picked.reduce((a, o) => a * o.p, 1) * PAYOUT_MODE_HIT_FLOOR
+    const size = (o: { signs: Sign[] }) => o.signs.length
+    for (;;) {
+      const P = picked.reduce((a, o) => a * o.p, 1)
+      const V = picked.reduce((a, o) => a * o.v, 1)
+      const R = picked.reduce((a, o) => a * size(o), 1)
+      let bestV = V
+      let move: [number, Opt, number, Opt] | null = null
+      const n = picked.length
+      for (let i = 0; i < n; i++) {
+        const a = picked[i]!
+        for (const oi of all[i]!) {
+          if (oi === a) continue
+          const p1 = (P / a.p) * oi.p
+          const v1 = (V / a.v) * oi.v
+          const r1 = (R / size(a)) * size(oi)
+          if (p1 >= floor && r1 <= targetRows && v1 > bestV) {
+            bestV = v1
+            move = [i, oi, -1, oi]
+          }
+          for (let j = i + 1; j < n; j++) {
+            const b = picked[j]!
+            for (const oj of all[j]!) {
+              if (oj === b) continue
+              if ((p1 / b.p) * oj.p < floor) continue
+              if ((r1 / size(b)) * size(oj) > targetRows) continue
+              const v2 = (v1 / b.v) * oj.v
+              if (v2 > bestV) {
+                bestV = v2
+                move = [i, oi, j, oj]
+              }
+            }
+          }
+        }
+      }
+      if (!move) break
+      picked[move[0]] = move[1]
+      if (move[2] >= 0) picked[move[2]] = move[3]
     }
   }
 
+  return systemFromSigns(
+    matches,
+    picked.map((o) => o.signs),
+    rowPriceOre,
+  )
+}
+
+/** Bygger ett system ur givna tecken per match — förslag eller egna ändringar. */
+export function systemFromSigns(
+  matches: Match[],
+  signs: readonly (readonly Sign[])[],
+  rowPriceOre: number,
+): SystemSuggestion {
   const picks: MatchPick[] = matches.map((m, i) => {
     // Behåll spelordningen 1, X, 2 för läsbarhet.
-    const ordered = (['1', 'X', '2'] as Sign[]).filter((s) => best.picked[i]!.signs.includes(s))
+    const ordered = (['1', 'X', '2'] as Sign[]).filter((s) => signs[i]!.includes(s))
     return {
       eventNumber: m.eventNumber,
       label: m.label,
@@ -219,16 +262,19 @@ export function payout13IfHitOre(
 ): number {
   const totalRows = netSaleOre / rowPriceOre
   const pool = netSaleOre * TIER_SHARE[13]
+  // Djupet-först i stället för expandRows: egna system kan bli upp till
+  // 3^13 = 1,6 M rader, för många att materialisera.
   let sum = 0
-  for (const row of expandRows(sys.picks)) {
-    let p = 1
-    let c = 1
-    row.forEach((s, i) => {
-      p *= probFor(matches[i]!.model, s)
-      c *= crowdShare(matches[i]!.crowd, alpha, s)
-    })
-    sum += p * pool * expectedInverseWinners(Math.max(0, totalRows * c - 1))
+  const walk = (i: number, p: number, c: number): void => {
+    if (i === sys.picks.length) {
+      sum += p * pool * expectedInverseWinners(Math.max(0, totalRows * c - 1))
+      return
+    }
+    for (const s of sys.picks[i]!.signs) {
+      walk(i + 1, p * probFor(matches[i]!.model, s), c * crowdShare(matches[i]!.crowd, alpha, s))
+    }
   }
+  walk(0, 1, 1)
   return sys.prob13 > 0 ? sum / sys.prob13 : 0
 }
 

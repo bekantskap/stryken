@@ -1,7 +1,8 @@
-import { loadDrawView, systemFor, payoutIfHitKr, listDraws } from '../src/lib/draw-view.ts'
-import { validSystemSizes, expandRows, MOVE_STRONG_PP, type Mode } from '../src/lib/system.ts'
+import { loadDrawView, systemFor, customSystem, payoutIfHitKr, listDraws } from '../src/lib/draw-view.ts'
+import { validSystemSizes, expandRows, MOVE_STRONG_PP, type Mode, type Sign } from '../src/lib/system.ts'
 import { BASE_PAYOUT_RATIO } from '../src/lib/payout.ts'
 import Link from 'next/link'
+import type { Route } from 'next'
 import { Controls } from './controls.tsx'
 
 export const dynamic = 'force-dynamic'
@@ -16,6 +17,14 @@ function fmtPct(v: number, digits = 0) {
   return `${(v * 100).toFixed(digits)} %`
 }
 
+/** Egna tecken ur ?val=1-X2-12-…, ett led per match. null = använd förslaget. */
+function parseVal(val: string | undefined, n: number): Sign[][] | null {
+  const parts = val?.split('-') ?? []
+  if (parts.length !== n) return null
+  const out = parts.map((p) => (['1', 'X', '2'] as Sign[]).filter((s) => p.includes(s)))
+  return out.every((o) => o.length > 0) ? out : null
+}
+
 /** Färgklass för värdekvot. */
 function vClass(v: number) {
   if (v >= 1.15) return 'v-hi'
@@ -26,7 +35,7 @@ function vClass(v: number) {
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ draw?: string; rader?: string; produkt?: string; lage?: string }>
+  searchParams: Promise<{ draw?: string; rader?: string; produkt?: string; lage?: string; val?: string }>
 }) {
   const sp = await searchParams
   const product = PRODUCTS.some((p) => p.value === sp.produkt)
@@ -55,9 +64,28 @@ export default async function Page({
     )
   }
 
-  const sys = systemFor(view, targetRows, mode)
-  // Jämförelsen mot träffläget är hela poängen: visa vad utdelningen kostar.
-  const base = mode === 'utdelning' ? systemFor(view, targetRows) : sys
+  const suggested = systemFor(view, targetRows, mode)
+  const custom = parseVal(sp.val, view.matches.length)
+  const sys = custom ? customSystem(view, custom) : suggested
+  // Jämförelsen är hela poängen: visa vad ändringen eller utdelningsläget kostar.
+  const base = custom ? suggested : mode === 'utdelning' ? systemFor(view, targetRows) : sys
+  const baseLabel = custom ? 'förslaget' : 'max träffchans'
+
+  const href = (val: string | null) => {
+    const q = new URLSearchParams(
+      Object.entries(sp).filter((e): e is [string, string] => typeof e[1] === 'string'),
+    )
+    if (val === null) q.delete('val')
+    else q.set('val', val)
+    return `/?${q.toString()}` as Route
+  }
+  /** Länk som slår på/av ett tecken. null om det är matchens sista tecken. */
+  const toggleHref = (i: number, s: Sign) => {
+    const next = sys.picks.map((p, j) =>
+      j !== i ? p.signs : p.signs.includes(s) ? p.signs.filter((x) => x !== s) : [...p.signs, s],
+    )
+    return next[i]!.length === 0 ? null : href(next.map((x) => x.join('')).join('-'))
+  }
   const payout = payoutIfHitKr(view, sys)
   const basePayout = payoutIfHitKr(view, base)
   const pickByNum = new Map(sys.picks.map((p) => [p.eventNumber, p]))
@@ -147,7 +175,7 @@ export default async function Page({
             <div className="v">{fmtPct(sys.prob13, 2)}</div>
             <div className="n">
               1 på {Math.round(1 / sys.prob13).toLocaleString('sv-SE')} omgångar
-              {sys !== base && ` (${fmtPct(sys.prob13 / base.prob13 - 1)} mot max)`}
+              {sys !== base && ` (${fmtPct(sys.prob13 / base.prob13 - 1)} mot ${baseLabel})`}
             </div>
           </div>
           {payout !== null && (
@@ -156,7 +184,7 @@ export default async function Page({
               <div className="v">≈ {Math.round(payout).toLocaleString('sv-SE')} kr</div>
               <div className="n">
                 {sys !== base && basePayout
-                  ? `×${(payout / basePayout).toFixed(1)} mot max träffchans`
+                  ? `×${(payout / basePayout).toFixed(1)} mot ${baseLabel}`
                   : 'uppskattad, utan extrapott'}
               </div>
             </div>
@@ -212,6 +240,15 @@ export default async function Page({
 
       <div className="panel">
         <h2>Värdetabell och systemförslag</h2>
+        <p className="hint">
+          {custom ? (
+            <>
+              Du har ändrat tipset. <Link href={href(null)}>Återställ förslaget</Link>
+            </>
+          ) : (
+            'Klicka på 1, X eller 2 i systemkolumnen för att ändra tipset.'
+          )}
+        </p>
         <div className="tablewrap">
           <table>
             <thead>
@@ -226,7 +263,7 @@ export default async function Page({
               </tr>
             </thead>
             <tbody>
-              {view.matches.map((m) => {
+              {view.matches.map((m, mi) => {
                 const pick = pickByNum.get(m.eventNumber)
                 const tags: React.ReactNode[] = []
                 for (const [sign, v, p] of [
@@ -288,11 +325,14 @@ export default async function Page({
                         {(['1', 'X', '2'] as const).map((s) => {
                           const on = pick?.signs.includes(s)
                           const hit = on && m.outcome === s
-                          return (
-                            <span
-                              key={s}
-                              className={`pick${on ? (hit ? ' hit' : ' on') : ''}`}
-                            >
+                          const cls = `pick${on ? (hit ? ' hit' : ' on') : ''}`
+                          const to = toggleHref(mi, s)
+                          return to ? (
+                            <Link key={s} href={to} scroll={false} className={cls}>
+                              {s}
+                            </Link>
+                          ) : (
+                            <span key={s} className={cls}>
                               {s}
                             </span>
                           )
@@ -307,16 +347,19 @@ export default async function Page({
           </table>
         </div>
 
-        <details style={{ marginTop: 14 }}>
-          <summary style={{ cursor: 'pointer', fontSize: 13, color: 'var(--muted)' }}>
-            Visa alla {sys.rows} rader
-          </summary>
-          <div className="rows">
-            {expandRows(sys.picks).map((r, i) => (
-              <div key={i}>{r.join('')}</div>
-            ))}
-          </div>
-        </details>
+        {/* Egna system kan bli 1,6 M rader — för många att rendera. */}
+        {sys.rows <= 5000 && (
+          <details style={{ marginTop: 14 }}>
+            <summary style={{ cursor: 'pointer', fontSize: 13, color: 'var(--muted)' }}>
+              Visa alla {sys.rows} rader
+            </summary>
+            <div className="rows">
+              {expandRows(sys.picks).map((r, i) => (
+                <div key={i}>{r.join('')}</div>
+              ))}
+            </div>
+          </details>
+        )}
       </div>
 
       <div className="honesty">

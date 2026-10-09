@@ -7,7 +7,9 @@ import {
   isDegenerateDistribution,
   biggestMove,
   payout13IfHitOre,
+  systemFromSigns,
   PAYOUT_MODE_HIT_FLOOR,
+  type Sign,
 } from '../src/lib/system.ts'
 import type { SignProbs } from '../src/lib/payout.ts'
 
@@ -156,4 +158,14 @@ test('utdelningsläget byter till understreckat tecken inom träffgolvet', () =>
   assert.ok(pay.prob13 >= base.prob13 * PAYOUT_MODE_HIT_FLOOR)
   const n = 20_000_000 * 100
   assert.ok(payout13IfHitOre(pay, m, n, 100, 1) > payout13IfHitOre(base, m, n, 100, 1))
+})
+
+test('systemFromSigns räknar rader och träffchans ur egna tecken', () => {
+  const m = uniform([0.5, 0.3, 0.2])
+  const signs = m.map((_, i) => (i === 0 ? ['2', '1'] : i === 1 ? ['1', 'X', '2'] : ['1'])) as Sign[][]
+  const sys = systemFromSigns(m, signs, 100)
+  assert.equal(sys.rows, 6)
+  assert.equal(sys.costOre, 600)
+  assert.deepEqual(sys.picks[0]!.signs, ['1', '2'])
+  assert.ok(Math.abs(sys.prob13 - 0.7 * 1 * 0.5 ** 11) < 1e-12)
 })
