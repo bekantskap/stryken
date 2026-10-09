@@ -28,7 +28,7 @@ npm run analyse               # ← värdetabellen
 npm run dev        # http://localhost:3000
 ```
 
-Dropdowns för omgång och systemstorlek, värdetabell med färgkodade värdekvoter, systemförslag med markerade garderingar, och rörelsevarningar. Samma siffror som CLI:t — båda använder `src/lib/draw-view.ts`.
+Dropdowns för omgång och systemstorlek, värdetabell med färgkodade värdekvoter, systemförslag med markerade garderingar, och rörelsevarningar. Klicka på 1/X/2 i systemkolumnen för att ändra tipset — träffchans, kostnad och utdelning vid 13 rätt räknas om och jämförs mot förslaget. Samma siffror som CLI:t — båda använder `src/lib/draw-view.ts`.
 
 **Deploy till Vercel:**
 
@@ -52,7 +52,7 @@ npm run tips -- --rader 48 --lage utdelning # mindre streckat, större utdelning
 
 Ger garderingar per match (spik / halvgardering / helgardering) — det man faktiskt lämnar in. Väljer den kombination som maximerar sannolikheten att systemet innehåller rätt rad, inom din budget.
 
-`--lage utdelning` (Mål i UI:t) tar högst 10 % lägre träffchans i utbyte mot mindre streckade tecken, så att potten delas med färre om du träffar. Typiskt ×1,0–1,6 i 13-utdelning. Gör förväntad avkastning mindre negativ, inte positiv.
+`--lage utdelning` (Mål i UI:t) tar högst 10 % lägre träffchans i utbyte mot mindre streckade tecken, så att potten delas med färre om du träffar. Typiskt ×1,1–2,3 i 13-utdelning (omgång 4970–4974). Gör förväntad avkastning mindre negativ, inte positiv.
 
 **Se värdetabellen:**
 

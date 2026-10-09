@@ -35,6 +35,8 @@ export function Controls({
     // serier (Stryktipset ~4969, Europatipset ~2604), så ett kvarhängande
     // draw-värde ger ingen träff.
     if (key === 'produkt') next.delete('draw')
+    // Egna ändringar gäller bara förslaget de gjordes på.
+    next.delete('val')
     startTransition(() => router.push(`/?${next.toString()}`))
   }
 
